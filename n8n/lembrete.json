@@ -1,0 +1,173 @@
+{
+  "name": "Studio Michele — Lembrete 2 dias antes",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1-5" }]
+        }
+      },
+      "id": "r1",
+      "name": "Todo dia 08h (seg-sex)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/appointments_full?date=eq.{{ $now.plus({days: 2}).toISODate() }}&status=eq.confirmed&reminder_sent=eq.false&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "r2",
+      "name": "Buscar agendamentos (D+2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "r3",
+      "name": "Tem agendamentos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=",
+        "options": {}
+      },
+      "id": "r4",
+      "name": "Loop por agendamento",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta texto do lembrete\nconst a = $input.first().json;\n\nconst DAYS_PT   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];\nconst MONTHS_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];\nconst d = new Date(a.date + 'T12:00:00');\nconst dateLabel = `${DAYS_PT[d.getDay()]} ${d.getDate()} de ${MONTHS_PT[d.getMonth()]}`;\n\nconst firstName = a.client_name.split(' ')[0];\nconst start = a.start_time?.slice(0,5);\n\nconst text = `Oi ${firstName}! 💅 Lembrando do seu agendamento *amanhã*:\\n\\n📅 ${dateLabel}\\n🕐 ${start}\\n✨ ${a.service_name}\\n💰 R$${Number(a.service_price).toFixed(2).replace('.',',')}\\n\\nQualquer coisa é só falar! 😊`;\n\nreturn [{ json: { id: a.id, phone: a.client_phone, text } }];"
+      },
+      "id": "r5",
+      "name": "Montar lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $json.phone }}" },
+            { "name": "text",   "value": "={{ $json.text }}" },
+            { "name": "delay",  "value": "1500" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",       "value": "={{ $env.EVOLUTION_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "r6",
+      "name": "Enviar lembrete WA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/appointments?id=eq.{{ $('Montar lembrete').first().json.id }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"reminder_sent\": true }",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "r7",
+      "name": "Marcar reminder_sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {},
+      "id": "r8",
+      "name": "Próximo agendamento",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1780, 200],
+      "notes": "Loop volta para r4 até esgotar os agendamentos"
+    }
+  ],
+  "connections": {
+    "Todo dia 08h (seg-sex)": {
+      "main": [[{ "node": "Buscar agendamentos (D+2)", "type": "main", "index": 0 }]]
+    },
+    "Buscar agendamentos (D+2)": {
+      "main": [[{ "node": "Tem agendamentos?", "type": "main", "index": 0 }]]
+    },
+    "Tem agendamentos?": {
+      "main": [
+        [{ "node": "Loop por agendamento", "type": "main", "index": 0 }]
+      ]
+    },
+    "Loop por agendamento": {
+      "main": [
+        [{ "node": "Montar lembrete",    "type": "main", "index": 0 }]
+      ]
+    },
+    "Montar lembrete": {
+      "main": [[{ "node": "Enviar lembrete WA",  "type": "main", "index": 0 }]]
+    },
+    "Enviar lembrete WA": {
+      "main": [[{ "node": "Marcar reminder_sent", "type": "main", "index": 0 }]]
+    },
+    "Marcar reminder_sent": {
+      "main": [[{ "node": "Próximo agendamento",  "type": "main", "index": 0 }]]
+    },
+    "Próximo agendamento": {
+      "main": [[{ "node": "Loop por agendamento", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "id": "lembrete-studio-michele",
+  "meta": {
+    "instanceId": "studio-michele"
+  }
+}

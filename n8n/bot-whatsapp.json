@@ -1,0 +1,396 @@
+{
+  "name": "Studio Michele — Bot WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n1",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {}
+      },
+      "id": "n2",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.data.messageType }}",
+              "rightValue": "conversation",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "n3",
+      "name": "É mensagem de texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza payload da Evolution API\nconst body = $input.first().json.body;\nconst data = body.data || {};\n\nconst phone = data.key?.remoteJid?.replace('@s.whatsapp.net', '') || '';\nconst text  = (data.message?.conversation || '').toLowerCase().trim();\n\nreturn [{ json: { phone, text, rawText: data.message?.conversation || '' } }];"
+      },
+      "id": "n4",
+      "name": "Normalizar mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/bot_sessions?phone=eq.{{ $json.phone }}&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n5",
+      "name": "Buscar sessão",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mescla dados da mensagem com estado da sessão\nconst msg = $('Normalizar mensagem').first().json;\nconst sessions = $input.first().json;\nconst session = Array.isArray(sessions) && sessions.length > 0\n  ? sessions[0]\n  : { phone: msg.phone, step: 'INIT' };\n\nreturn [{ json: { ...msg, session } }];"
+      },
+      "id": "n6",
+      "name": "Mesclar sessão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.session.step }}", "rightValue": "INIT",            "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.session.step }}", "rightValue": "WAITING_SERVICE","operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.session.step }}", "rightValue": "WAITING_DATE",   "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.session.step }}", "rightValue": "WAITING_SLOT",   "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.session.step }}", "rightValue": "WAITING_NAME",   "operator": { "type": "string", "operation": "equals" } }] } }
+          ]
+        }
+      },
+      "id": "n7",
+      "name": "Switch etapa",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1340, 300]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Etapa INIT: Detecta se é cancelamento ou novo agendamento\nconst text = $json.text;\nconst phone = $json.phone;\n\nif (text.includes('cancelar') || text.includes('cancela') || text.includes('desmarcar')) {\n  return [{ json: { phone, action: 'cancel_lookup', reply: null } }];\n}\n\n// Apresenta menu\nconst menu = `Oi! Sou o assistente do *Studio da Michele* 💅\\n\\nQual serviço você quer fazer, meu bem?\\n\\n1. Esmaltação Completa (1h30) - R$40\\n2. Pé Normal (40min) - R$25\\n3. Mão Normal (45min) - R$20\\n4. Banho de Gel (2h30) - R$80\\n5. Alongamento em Gel (3h) - R$120\\n\\nResponda o número ou nome do serviço 😊`;\nreturn [{ json: { phone, action: 'send_menu', reply: menu, nextStep: 'WAITING_SERVICE' } }];"
+      },
+      "id": "n8",
+      "name": "Handle INIT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 60]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Etapa WAITING_SERVICE: Identifica serviço pelo texto\nconst text = $json.text;\nconst phone = $json.phone;\n\nconst SERVICE_MAP = [\n  { id: 1, patterns: ['esmalte', 'esmaltacao', 'esmaltação', 'completa', '1'] },\n  { id: 2, patterns: ['pe', 'pé', 'pezinho', '2'] },\n  { id: 3, patterns: ['mao', 'mão', 'maozinha', 'mãozinha', '3'] },\n  { id: 4, patterns: ['gel', 'banho', 'banho de gel', '4'] },\n  { id: 5, patterns: ['alongamento', 'fibra', 'unhas de fibra', '5'] },\n];\n\nconst found = SERVICE_MAP.find(s => s.patterns.some(p => text.includes(p)));\n\nif (!found) {\n  return [{ json: {\n    phone,\n    action: 'send_message',\n    reply: 'Não entendi qual serviço 😅 Responda o número (1 a 5) ou o nome do serviço!',\n    nextStep: 'WAITING_SERVICE',\n    serviceId: null\n  }}];\n}\n\nconst DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];\nconst today = new Date();\nconst dates = [];\nfor (let i = 0; i < 60 && dates.length < 7; i++) {\n  const d = new Date(today);\n  d.setDate(today.getDate() + i);\n  if (d.getDay() !== 0 && d.getDay() !== 6) {\n    const dd = String(d.getDate()).padStart(2,'0');\n    const mm = String(d.getMonth()+1).padStart(2,'0');\n    dates.push({ iso: `${d.getFullYear()}-${mm}-${dd}`, label: `${DAYS_PT[d.getDay()]} ${dd}/${mm}` });\n  }\n}\n\nconst datesText = dates.map((d,i) => `${i+1}. ${d.label}`).join('\\n');\nconst reply = `Certo! Para qual data?\\n\\n${datesText}\\n\\nResponda o número ou escreva a data (ex: segunda, amanhã, 25/05) 😊`;\n\nreturn [{ json: { phone, action: 'send_message', reply, nextStep: 'WAITING_DATE', serviceId: found.id, availableDates: dates } }];"
+      },
+      "id": "n9",
+      "name": "Handle WAITING_SERVICE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Etapa WAITING_DATE: Interpreta data informada e busca slots\nconst text    = $json.text;\nconst phone   = $json.phone;\nconst session = $json.session;\n\nconst DAYS_PT = { 'segunda':1,'seg':1,'terca':2,'terça':2,'ter':2,'quarta':3,'qua':3,'quinta':4,'qui':4,'sexta':5,'sex':5,'amanha':1,'amanhã':1 };\n\nlet targetDate = null;\nconst today = new Date();\ntoday.setHours(0,0,0,0);\n\n// Tenta número (posição na lista)\nconst num = parseInt(text, 10);\nif (!isNaN(num) && num >= 1) {\n  let count = 0;\n  for (let i = 0; count < num; i++) {\n    const d = new Date(today);\n    d.setDate(today.getDate() + i);\n    if (d.getDay() !== 0 && d.getDay() !== 6) count++;\n    if (count === num) { targetDate = d; break; }\n  }\n}\n\n// Tenta DD/MM\nif (!targetDate) {\n  const m = text.match(/(\\d{1,2})[\\/\\-](\\d{1,2})/);\n  if (m) {\n    const d = new Date(today.getFullYear(), parseInt(m[2])-1, parseInt(m[1]));\n    if (d >= today) targetDate = d;\n  }\n}\n\n// Tenta nome do dia\nif (!targetDate) {\n  const clean = text.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();\n  const dowTarget = Object.entries(DAYS_PT).find(([k]) => clean.includes(k))?.[1];\n  if (dowTarget !== undefined) {\n    const diff = clean.includes('amanha') || clean.includes('amanhã') ? 1 : null;\n    if (diff !== null) {\n      targetDate = new Date(today);\n      targetDate.setDate(today.getDate() + diff);\n    } else {\n      for (let i = 1; i <= 7; i++) {\n        const d = new Date(today);\n        d.setDate(today.getDate() + i);\n        if (d.getDay() === dowTarget) { targetDate = d; break; }\n      }\n    }\n  }\n}\n\nif (!targetDate || targetDate.getDay() === 0 || targetDate.getDay() === 6) {\n  return [{ json: { phone, action: 'send_message', reply: 'Não entendi a data 😅 Escreva assim: _segunda_, _terça_, ou _25/05_. Só dias úteis!', nextStep: 'WAITING_DATE', serviceId: session.service_id } }];\n}\n\nconst yyyy = targetDate.getFullYear();\nconst mm   = String(targetDate.getMonth()+1).padStart(2,'0');\nconst dd   = String(targetDate.getDate()).padStart(2,'0');\nconst iso  = `${yyyy}-${mm}-${dd}`;\n\nreturn [{ json: { phone, action: 'fetch_slots', isoDate: iso, serviceId: session.service_id || null } }];"
+      },
+      "id": "n10",
+      "name": "Handle WAITING_DATE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 340]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Etapa WAITING_SLOT: Identifica horário escolhido\nconst text    = $json.text;\nconst phone   = $json.phone;\nconst session = $json.session;\n\n// Tenta extrair HH:MM ou \"9h\", \"13h\", \"13:30\"\nconst m1 = text.match(/(\\d{1,2})[:h](\\d{2})?/);\nlet slot = null;\nif (m1) {\n  const h = m1[1].padStart(2,'0');\n  const min = m1[2] || '00';\n  slot = `${h}:${min}`;\n}\n\nif (!slot) {\n  return [{ json: { phone, action: 'send_message', reply: 'Não entendi o horário 😅 Responda assim: _09:00_, _13h_, _15:30_', nextStep: 'WAITING_SLOT', serviceId: session.service_id, isoDate: session.date } }];\n}\n\nreturn [{ json: { phone, action: 'send_message', reply: 'Perfeito! Só me diz seu nome completo 😊', nextStep: 'WAITING_NAME', serviceId: session.service_id, isoDate: session.date, slotTime: slot + ':00' } }];"
+      },
+      "id": "n11",
+      "name": "Handle WAITING_SLOT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 480]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Etapa WAITING_NAME: Recebe nome e confirma agendamento\nconst name    = $json.rawText?.trim() || $json.text?.trim() || '';\nconst phone   = $json.phone;\nconst session = $json.session;\n\nif (name.split(' ').length < 2 || name.length < 4) {\n  return [{ json: { phone, action: 'send_message', reply: 'Pode me dizer seu nome completo? (Nome e Sobrenome)', nextStep: 'WAITING_NAME', serviceId: session.service_id, isoDate: session.date, slotTime: session.slot_time } }];\n}\n\nreturn [{ json: {\n  phone,\n  action: 'create_appointment',\n  clientName: name,\n  serviceId: session.service_id,\n  isoDate:   session.date,\n  slotTime:  session.slot_time\n} }];"
+      },
+      "id": "n12",
+      "name": "Handle WAITING_NAME",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 620]
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/available_slots",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "p_date",       "value": "={{ $json.isoDate }}" },
+            { "name": "p_service_id", "value": "={{ $json.serviceId }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n13",
+      "name": "Buscar slots livres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 340]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Formata lista de slots e monta resposta\nconst data    = $input.first().json;\nconst prev    = $('Handle WAITING_DATE').first().json;\nconst slots   = Array.isArray(data) ? data.map(s => s.slot_time?.slice(0,5)) : [];\n\nconst DAYS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];\nconst MONTHS_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];\nconst d = new Date(prev.isoDate + 'T12:00:00');\nconst dateLabel = `${DAYS_PT[d.getDay()]} ${d.getDate()} de ${MONTHS_PT[d.getMonth()]}`;\n\nif (slots.length === 0) {\n  return [{ json: {\n    phone: prev.phone,\n    action: 'send_message',\n    reply: `Poxa, não tenho horários disponíveis para ${dateLabel} 😕\\nEscolha outra data:`,\n    nextStep: 'WAITING_DATE',\n    serviceId: prev.serviceId\n  }}];\n}\n\nconst slotsText = slots.join(' | ');\nconst reply = `Certo! Para ${dateLabel}, tenho esses horários disponíveis:\\n\\n🕐 ${slotsText}\\n\\nQual você prefere?`;\n\nreturn [{ json: {\n  phone: prev.phone,\n  action: 'send_message',\n  reply,\n  nextStep: 'WAITING_SLOT',\n  serviceId: prev.serviceId,\n  isoDate: prev.isoDate\n} }];"
+      },
+      "id": "n14",
+      "name": "Formatar slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 340]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/create_appointment",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "p_client_name", "value": "={{ $json.clientName }}" },
+            { "name": "p_phone",       "value": "={{ $json.phone }}" },
+            { "name": "p_service_id",  "value": "={{ $json.serviceId }}" },
+            { "name": "p_date",        "value": "={{ $json.isoDate }}" },
+            { "name": "p_start_time",  "value": "={{ $json.slotTime }}" },
+            { "name": "p_created_via", "value": "bot" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n15",
+      "name": "Criar agendamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 620]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Monta mensagem de confirmação após agendamento criado\nconst prev = $('Handle WAITING_NAME').first().json;\n\nconst DAYS_PT   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];\nconst MONTHS_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];\nconst d = new Date(prev.isoDate + 'T12:00:00');\nconst dateLabel = `${DAYS_PT[d.getDay()]} ${d.getDate()} de ${MONTHS_PT[d.getMonth()]}`;\n\n// Mapeia id → nome do serviço\nconst SERVICES = { 1:'Esmaltação Completa', 2:'Pé Normal', 3:'Mão Normal', 4:'Banho de Gel', 5:'Alongamento em Gel' };\nconst PRICES   = { 1:'R$40', 2:'R$25', 3:'R$20', 4:'R$80', 5:'R$120' };\nconst DURATIONS = { 1:90, 2:40, 3:45, 4:150, 5:180 };\n\nconst svcName = SERVICES[prev.serviceId] || 'Serviço';\nconst price   = PRICES[prev.serviceId] || '';\nconst dur     = DURATIONS[prev.serviceId] || 0;\nconst [h,m]   = prev.slotTime.split(':').map(Number);\nconst endMin  = h*60+m+dur;\nconst endStr  = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;\nconst startStr = prev.slotTime.slice(0,5);\n\nconst firstName = prev.clientName.split(' ')[0];\n\nconst reply = `Agendado, ${firstName}! ✅\\n\\n📅 ${dateLabel}\\n🕐 ${startStr} → ${endStr}\\n✨ ${svcName}\\n💰 ${price}\\n\\nVou te lembrar 2 dias antes, tá? 💅`;\n\nreturn [{ json: { phone: prev.phone, action: 'send_message', reply, nextStep: null, clearSession: true } }];"
+      },
+      "id": "n16",
+      "name": "Montar confirmação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 620]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Unifica mensagem final de todas as etapas para envio\n// Recebe de: n8, n9, n14, n16 (rotas variadas)\nconst items = $input.all();\nreturn items;"
+      },
+      "id": "n17",
+      "name": "Unificar resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 300]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number",  "value": "={{ $json.phone }}" },
+            { "name": "text",    "value": "={{ $json.reply }}" },
+            { "name": "delay",   "value": "1200" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",       "value": "={{ $env.EVOLUTION_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n18",
+      "name": "Enviar mensagem WA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2440, 300]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Salva/atualiza estado da sessão no Supabase\nconst d = $input.first().json;\nif (!d.nextStep && !d.clearSession) return [];\n\nconst body = {\n  phone:      d.phone,\n  step:       d.clearSession ? 'INIT' : d.nextStep,\n  service_id: d.serviceId  || null,\n  date:       d.isoDate    || null,\n  slot_time:  d.slotTime   || null,\n  name:       d.clientName || null\n};\n\nreturn [{ json: body }];"
+      },
+      "id": "n19",
+      "name": "Preparar sessão para salvar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 460]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/bot_sessions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n20",
+      "name": "Salvar sessão",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2660, 460]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [
+        [{ "node": "Respond 200",            "type": "main", "index": 0 }],
+        [{ "node": "É mensagem de texto?",   "type": "main", "index": 0 }]
+      ]
+    },
+    "É mensagem de texto?": {
+      "main": [
+        [{ "node": "Normalizar mensagem",    "type": "main", "index": 0 }]
+      ]
+    },
+    "Normalizar mensagem": {
+      "main": [[{ "node": "Buscar sessão",   "type": "main", "index": 0 }]]
+    },
+    "Buscar sessão": {
+      "main": [[{ "node": "Mesclar sessão",  "type": "main", "index": 0 }]]
+    },
+    "Mesclar sessão": {
+      "main": [[{ "node": "Switch etapa",    "type": "main", "index": 0 }]]
+    },
+    "Switch etapa": {
+      "main": [
+        [{ "node": "Handle INIT",              "type": "main", "index": 0 }],
+        [{ "node": "Handle WAITING_SERVICE",   "type": "main", "index": 0 }],
+        [{ "node": "Handle WAITING_DATE",      "type": "main", "index": 0 }],
+        [{ "node": "Handle WAITING_SLOT",      "type": "main", "index": 0 }],
+        [{ "node": "Handle WAITING_NAME",      "type": "main", "index": 0 }]
+      ]
+    },
+    "Handle INIT": {
+      "main": [[{ "node": "Unificar resposta", "type": "main", "index": 0 }]]
+    },
+    "Handle WAITING_SERVICE": {
+      "main": [[{ "node": "Unificar resposta", "type": "main", "index": 0 }]]
+    },
+    "Handle WAITING_DATE": {
+      "main": [[{ "node": "Buscar slots livres", "type": "main", "index": 0 }]]
+    },
+    "Buscar slots livres": {
+      "main": [[{ "node": "Formatar slots",    "type": "main", "index": 0 }]]
+    },
+    "Formatar slots": {
+      "main": [[{ "node": "Unificar resposta", "type": "main", "index": 0 }]]
+    },
+    "Handle WAITING_SLOT": {
+      "main": [[{ "node": "Unificar resposta", "type": "main", "index": 0 }]]
+    },
+    "Handle WAITING_NAME": {
+      "main": [[{ "node": "Criar agendamento", "type": "main", "index": 0 }]]
+    },
+    "Criar agendamento": {
+      "main": [[{ "node": "Montar confirmação","type": "main", "index": 0 }]]
+    },
+    "Montar confirmação": {
+      "main": [[{ "node": "Unificar resposta", "type": "main", "index": 0 }]]
+    },
+    "Unificar resposta": {
+      "main": [
+        [{ "node": "Enviar mensagem WA",          "type": "main", "index": 0 }],
+        [{ "node": "Preparar sessão para salvar", "type": "main", "index": 0 }]
+      ]
+    },
+    "Preparar sessão para salvar": {
+      "main": [[{ "node": "Salvar sessão",        "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "id": "bot-whatsapp-studio-michele",
+  "meta": {
+    "instanceId": "studio-michele"
+  }
+}
