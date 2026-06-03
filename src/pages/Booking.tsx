@@ -7,7 +7,7 @@ import { T, serviceTint, serviceIcon } from "../theme/terra";
 type Step = "service" | "date" | "time" | "info" | "confirm" | "success";
 
 type BookingState = {
-  service: Service | null;
+  services: Service[];
   date: string;
   time: string;
   name: string;
@@ -98,7 +98,7 @@ export default function Booking() {
     studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00',
   })
   const [booking, setBooking] = useState<BookingState>({
-    service: null,
+    services: [],
     date: "",
     time: "",
     name: "",
@@ -119,20 +119,38 @@ export default function Booking() {
     setAccountState("loading");
     setAccountError(null);
     try {
+      const rawPhone = toRawPhone(booking.phone);
       const { token } = accountMode === "register"
-        ? await api.client.register(accountEmail, accountPass, toRawPhone(booking.phone))
-        : await api.client.login(accountEmail, accountPass);
+        ? await api.client.register(rawPhone, accountPass, accountEmail || undefined)
+        : await api.client.login(rawPhone, accountPass);
       localStorage.setItem("client_token", token);
       setAccountState("done");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro.";
-      setAccountError(msg);
+      setAccountError(err instanceof Error ? err.message : "Erro.");
       setAccountState("error");
     }
   }
 
   const set = (patch: Partial<BookingState>) =>
     setBooking((prev) => ({ ...prev, ...patch }));
+
+  const primaryService = booking.services[0] ?? null;
+  const totalDuration  = booking.services.reduce((s, sv) => s + sv.duration, 0);
+  const totalPrice     = booking.services.reduce((s, sv) => s + sv.price, 0);
+
+  function toggleService(svc: Service) {
+    setBooking(prev => {
+      const exists = prev.services.find(s => s.id === svc.id);
+      return {
+        ...prev,
+        services: exists
+          ? prev.services.filter(s => s.id !== svc.id)
+          : [...prev.services, svc],
+        // limpa horário ao mudar serviços
+        time: "",
+      };
+    });
+  }
 
   useEffect(() => {
     if (!slug) return;
@@ -143,26 +161,28 @@ export default function Booking() {
   }, [slug]);
 
   useEffect(() => {
-    if (!booking.date || !booking.service || !slug) return;
+    if (!booking.date || booking.services.length === 0 || !slug) return;
     setSlotsLoading(true);
     setSlots([]);
     setError(null);
+    const ids = booking.services.map(s => s.id);
     api.appointments
-      .slots(booking.date, booking.service.id, slug)
+      .slots(booking.date, ids.length === 1 ? ids[0] : ids, slug)
       .then(setSlots)
       .catch(() => setError("Erro ao buscar horários. Tente novamente."))
       .finally(() => setSlotsLoading(false));
-  }, [booking.date, booking.service, slug]);
+  }, [booking.date, booking.services, slug]);
 
   async function handleConfirm() {
-    if (!booking.service) return;
+    if (booking.services.length === 0) return;
     setLoading(true);
     setError(null);
     try {
+      const ids = booking.services.map(s => s.id);
       await api.appointments.create({
         client_name: booking.name.trim(),
         phone: toRawPhone(booking.phone),
-        service_id: booking.service.id,
+        ...(ids.length === 1 ? { service_id: ids[0] } : { service_ids: ids }),
         date: booking.date,
         start_time: `${booking.time}:00`,
         created_via: "website",
@@ -361,35 +381,16 @@ export default function Booking() {
         )}
 
         {/* Chips */}
-        {booking.service && step !== "service" && step !== "success" && (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 7,
-              marginBottom: 20,
-            }}
-          >
+        {booking.services.length > 0 && step !== "service" && step !== "success" && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 20 }}>
             {[
-              booking.service.name,
-              booking.date
-                ? `${bDate(booking.date).dow} ${bDate(booking.date).day}`
-                : null,
+              booking.services.map(s => s.name).join(" + "),
+              booking.date ? `${bDate(booking.date).dow} ${bDate(booking.date).day}` : null,
               booking.time || null,
             ]
               .filter(Boolean)
               .map((x, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: T.primary,
-                    background: T.primarySoft,
-                    borderRadius: 999,
-                    padding: "5px 12px",
-                  }}
-                >
+                <span key={i} style={{ fontSize: 12, fontWeight: 600, color: T.primary, background: T.primarySoft, borderRadius: 999, padding: "5px 12px" }}>
                   {x}
                 </span>
               ))}
@@ -413,76 +414,51 @@ export default function Booking() {
                 </p>
               )}
               {services.map((svc) => {
-                const c = serviceTint(svc.id);
+                const c        = serviceTint(svc.id);
+                const selected = booking.services.some(s => s.id === svc.id);
                 return (
                   <button
                     key={svc.id}
-                    onClick={() => {
-                      set({ service: svc, date: "", time: "" });
-                      go("date");
-                    }}
+                    onClick={() => toggleService(svc)}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      padding: "14px 15px",
-                      cursor: "pointer",
-                      background: T.surface,
-                      border: `1px solid ${T.line}`,
-                      borderRadius: T.radius,
-                      textAlign: "left",
-                      fontFamily: T.body,
+                      display: "flex", alignItems: "center", gap: 14,
+                      padding: "14px 15px", cursor: "pointer",
+                      background: selected ? T.primarySoft : T.surface,
+                      border: `1.5px solid ${selected ? T.primary : T.line}`,
+                      borderRadius: T.radius, textAlign: "left", fontFamily: T.body,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 13,
-                        background: c.tint,
-                        color: c.ink,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
+                    <div style={{ width: 46, height: 46, borderRadius: 13, background: c.tint, color: c.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Icon name={serviceIcon(svc.id)} size={24} sw={1.5} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: 15.5,
-                          fontWeight: 700,
-                          color: T.ink,
-                        }}
-                      >
-                        {svc.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12.5,
-                          color: T.inkSoft,
-                          marginTop: 2,
-                        }}
-                      >
-                        {durFmt(svc.duration)}
-                      </div>
+                      <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink }}>{svc.name}</div>
+                      <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>{durFmt(svc.duration)}</div>
                     </div>
-                    <div
-                      style={{
-                        fontFamily: T.heading,
-                        fontWeight: T.headingWeight,
-                        fontSize: 18,
-                        color: T.ink,
-                      }}
-                    >
-                      {brl(svc.price).replace("R$ ", "R$")}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                      <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 18, color: T.ink }}>
+                        {brl(svc.price).replace("R$ ", "R$")}
+                      </div>
+                      <div style={{ width: 22, height: 22, borderRadius: 999, border: `2px solid ${selected ? T.primary : T.line}`, background: selected ? T.primary : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {selected && <Icon name="check" size={13} color={T.primaryInk} sw={2.5} />}
+                      </div>
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            {booking.services.length > 0 && (
+              <div style={{ marginTop: 16, background: T.surface, border: `1px solid ${T.line}`, borderRadius: T.radius, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginBottom: 10 }}>
+                  <span style={{ color: T.inkSoft, fontSize: 13 }}>{durFmt(totalDuration)} no total</span>
+                  <span>{brl(totalPrice)}</span>
+                </div>
+                <button onClick={() => go("date")} style={{ width: "100%", background: T.primary, color: T.primaryInk, border: "none", borderRadius: T.radius, padding: "13px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: T.body }}>
+                  Continuar →
+                </button>
+              </div>
+            )}
           </Section>
         )}
 
@@ -560,7 +536,7 @@ export default function Booking() {
             title="Escolha o horário"
             sub={
               booking.service
-                ? `${durFmt(booking.service.duration)} · termina no horário mostrado`
+                ? `${durFmt(totalDuration)} · termina no horário mostrado`
                 : undefined
             }
           >
@@ -623,9 +599,9 @@ export default function Booking() {
                       }}
                     >
                       <span style={{ fontSize: 16, fontWeight: 700 }}>{s}</span>
-                      {booking.service && (
+                      {primaryService && (
                         <span style={{ fontSize: 10, opacity: 0.65 }}>
-                          → {endOf(s, booking.service.duration)}
+                          → {endOf(s, totalDuration)}
                         </span>
                       )}
                     </button>
@@ -665,7 +641,7 @@ export default function Booking() {
         )}
 
         {/* STEP: confirm */}
-        {step === "confirm" && booking.service && (
+        {step === "confirm" && booking.services.length > 0 && (
           <Section kicker="Passo 5 de 5" title="Confirmar">
             <div
               style={{
@@ -677,7 +653,7 @@ export default function Booking() {
               }}
             >
               {[
-                ["Serviço", booking.service.name],
+                ["Serviço", booking.services.map(s => s.name).join(" + ")],
                 [
                   "Dia",
                   booking.date
@@ -686,9 +662,9 @@ export default function Booking() {
                 ],
                 [
                   "Horário",
-                  `${booking.time} → ${endOf(booking.time, booking.service.duration)}`,
+                  `${booking.time} → ${endOf(booking.time, totalDuration)}`,
                 ],
-                ["Duração", durFmt(booking.service.duration)],
+                ["Duração", durFmt(totalDuration)],
                 ["Nome", booking.name],
                 ["WhatsApp", booking.phone],
               ].map(([k, v], i) => (
@@ -748,14 +724,14 @@ export default function Booking() {
                   color: T.primary,
                 }}
               >
-                {brl(booking.service.price)}
+                {brl(totalPrice)}
               </span>
             </div>
           </Section>
         )}
 
         {/* STEP: success */}
-        {step === "success" && booking.service && (
+        {step === "success" && primaryService && (
           <div style={{ textAlign: "center", paddingTop: 24 }}>
             <div
               style={{
@@ -811,36 +787,19 @@ export default function Booking() {
               }}
             >
               {(() => {
-                const c = serviceTint(booking.service!.id);
+                const c = serviceTint(primaryService!.id);
                 return (
-                  <div
-                    style={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 13,
-                      background: c.tint,
-                      color: c.ink,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon
-                      name={serviceIcon(booking.service!.id)}
-                      size={24}
-                      sw={1.5}
-                    />
+                  <div style={{ width: 46, height: 46, borderRadius: 13, background: c.tint, color: c.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon name={serviceIcon(primaryService!.id)} size={24} sw={1.5} />
                   </div>
                 );
               })()}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
-                  {booking.service.name}
+                  {booking.services.map(s => s.name).join(" + ")}
                 </div>
                 <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 1 }}>
-                  {booking.time} →{" "}
-                  {endOf(booking.time, booking.service.duration)} ·{" "}
-                  {brl(booking.service.price)}
+                  {booking.time} → {endOf(booking.time, totalDuration)} · {brl(totalPrice)}
                 </div>
               </div>
             </div>
@@ -873,27 +832,33 @@ export default function Booking() {
                   ))}
                 </div>
 
+                {/* telefone já preenchido — só exibir */}
+                <div style={{ background: T.bg, border: `1px solid ${T.line}`, borderRadius: T.radiusSm, padding: "11px 14px", fontSize: 14, color: T.inkSoft, marginBottom: 10 }}>
+                  📱 {booking.phone}
+                </div>
+
                 {accountError && (
                   <div style={{ background: "#fee2e2", color: "#991b1b", borderRadius: T.radiusSm, padding: "8px 12px", fontSize: 13, marginBottom: 10 }}>
                     {accountError}
                   </div>
                 )}
                 <input
-                  type="email"
-                  placeholder="Seu e-mail"
-                  value={accountEmail}
-                  onChange={e => setAccountEmail(e.target.value)}
-                  required
-                  style={{ ...fld, marginBottom: 10 }}
-                />
-                <input
                   type="password"
                   placeholder={accountMode === "register" ? "Criar senha (mín. 6 caracteres)" : "Sua senha"}
                   value={accountPass}
                   onChange={e => setAccountPass(e.target.value)}
                   required
-                  style={{ ...fld, marginBottom: 14 }}
+                  style={{ ...fld, marginBottom: 10 }}
                 />
+                {accountMode === "register" && (
+                  <input
+                    type="email"
+                    placeholder="E-mail (opcional)"
+                    value={accountEmail}
+                    onChange={e => setAccountEmail(e.target.value)}
+                    style={{ ...fld, marginBottom: 14 }}
+                  />
+                )}
                 <button
                   type="submit"
                   disabled={accountState === "loading"}
@@ -919,7 +884,7 @@ export default function Booking() {
 
             <button
               onClick={() => {
-                setBooking({ service: null, date: "", time: "", name: "", phone: "" });
+                setBooking({ services: [], date: "", time: "", name: "", phone: "" });
                 setAccountState("idle");
                 setAccountMode("register");
                 setAccountEmail("");

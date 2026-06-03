@@ -84,12 +84,31 @@ CREATE TABLE IF NOT EXISTS time_blocks (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── appointment_services ─────────────────────────────────────
+-- Relação N:N entre agendamentos e serviços (suporta múltiplos serviços por agendamento)
+CREATE TABLE IF NOT EXISTS appointment_services (
+  appointment_id UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+  service_id     INT  NOT NULL REFERENCES services(id),
+  sort_order     SMALLINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (appointment_id, service_id)
+);
+
+-- ── vip_contacts ─────────────────────────────────────────────
+-- Pessoas próximas da manicure que não devem receber mensagens automáticas
+CREATE TABLE IF NOT EXISTS vip_contacts (
+  studio_id INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
+  phone     TEXT NOT NULL,
+  name      TEXT NOT NULL,
+  note      TEXT,
+  PRIMARY KEY (studio_id, phone)
+);
+
 -- ── client_accounts ──────────────────────────────────────────
 -- Conta global da cliente — vinculada a agendamentos pelo telefone
 CREATE TABLE IF NOT EXISTS client_accounts (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone         TEXT NOT NULL UNIQUE,
-  email         VARCHAR(255) NOT NULL UNIQUE,
+  email         VARCHAR(255) UNIQUE,
   password_hash TEXT NOT NULL,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
@@ -140,7 +159,7 @@ JOIN clients  c ON c.id = a.client_id
 JOIN services s ON s.id = a.service_id;
 
 -- ── function: available_slots ────────────────────────────────
-CREATE OR REPLACE FUNCTION available_slots(p_date DATE, p_service_id INT, p_studio_id INT)
+CREATE OR REPLACE FUNCTION available_slots(p_date DATE, p_service_id INT, p_studio_id INT, p_duration INT DEFAULT NULL)
 RETURNS TABLE(slot_time TIME)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -159,9 +178,13 @@ BEGIN
 
   IF NOT (v_dow::TEXT = ANY(string_to_array(v_work_days, ','))) THEN RETURN; END IF;
 
-  SELECT duration INTO v_duration FROM services
-    WHERE id = p_service_id AND studio_id = p_studio_id AND active = true;
-  IF v_duration IS NULL THEN RETURN; END IF;
+  IF p_duration IS NOT NULL THEN
+    v_duration := p_duration;
+  ELSE
+    SELECT duration INTO v_duration FROM services
+      WHERE id = p_service_id AND studio_id = p_studio_id AND active = true;
+    IF v_duration IS NULL THEN RETURN; END IF;
+  END IF;
 
   v_slot := v_work_start;
   LOOP

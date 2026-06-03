@@ -23,27 +23,30 @@ function requireClientAuth(req: any, res: any, next: any) {
   }
 }
 
-// POST /api/client/register
+// POST /api/client/register — phone + password obrigatórios, email opcional
 clientAuthRouter.post('/register', async (req, res) => {
-  const { email, password, phone } = req.body as { email: string; password: string; phone: string }
+  const { phone, password, email } = req.body as { phone: string; password: string; email?: string }
 
-  if (!email || !password || !phone) {
-    res.status(400).json({ error: 'email, password e phone são obrigatórios.' }); return
+  if (!phone || !password) {
+    res.status(400).json({ error: 'phone e password são obrigatórios.' }); return
   }
   if (password.length < 6) {
     res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres.' }); return
   }
 
   const rawPhone      = phone.replace(/\D/g, '')
-  const normalEmail   = email.toLowerCase().trim()
+  const normalEmail   = email?.toLowerCase().trim() || null
   const password_hash = await bcrypt.hash(password, SALT_ROUNDS)
 
-  const conflict = await pool.query(
-    'SELECT id FROM client_accounts WHERE email = $1 OR phone = $2',
-    [normalEmail, rawPhone]
-  )
-  if (conflict.rows.length > 0) {
-    res.status(409).json({ error: 'E-mail ou telefone já cadastrado.' }); return
+  const phoneConflict = await pool.query('SELECT id FROM client_accounts WHERE phone = $1', [rawPhone])
+  if (phoneConflict.rows.length > 0) {
+    res.status(409).json({ error: 'Telefone já cadastrado.' }); return
+  }
+  if (normalEmail) {
+    const emailConflict = await pool.query('SELECT id FROM client_accounts WHERE email = $1', [normalEmail])
+    if (emailConflict.rows.length > 0) {
+      res.status(409).json({ error: 'E-mail já cadastrado.' }); return
+    }
   }
 
   const { rows } = await pool.query(
@@ -53,20 +56,21 @@ clientAuthRouter.post('/register', async (req, res) => {
   res.status(201).json({ token: makeClientToken(rows[0].id, rows[0].phone) })
 })
 
-// POST /api/client/login
+// POST /api/client/login — telefone + senha
 clientAuthRouter.post('/login', async (req, res) => {
-  const { email, password } = req.body as { email: string; password: string }
+  const { phone, password } = req.body as { phone: string; password: string }
 
-  if (!email || !password) {
-    res.status(400).json({ error: 'E-mail e senha são obrigatórios.' }); return
+  if (!phone || !password) {
+    res.status(400).json({ error: 'Telefone e senha são obrigatórios.' }); return
   }
 
+  const rawPhone = phone.replace(/\D/g, '')
   const { rows } = await pool.query(
-    'SELECT id, phone, password_hash FROM client_accounts WHERE email = $1',
-    [email.toLowerCase().trim()]
+    'SELECT id, phone, password_hash FROM client_accounts WHERE phone = $1',
+    [rawPhone]
   )
   if (!rows[0] || !await bcrypt.compare(password, rows[0].password_hash)) {
-    res.status(401).json({ error: 'E-mail ou senha incorretos.' }); return
+    res.status(401).json({ error: 'Telefone ou senha incorretos.' }); return
   }
 
   res.json({ token: makeClientToken(rows[0].id, rows[0].phone) })

@@ -81,9 +81,13 @@ export const api = {
       return req<{ appointments: Appointment[] }>('GET', `/appointments${q ? '?' + q : ''}`)
         .then(r => r.appointments)
     },
-    slots: (date: string, serviceId: number, studio: string) =>
-      req<{ slots: { start: string; end: string }[] }>('GET', `/slots/available?date=${date}&service_id=${serviceId}&studio=${studio}`, undefined, false)
-        .then(r => r.slots.map(s => s.start)),
+    slots: (date: string, serviceIds: number | number[], studio: string) => {
+      const param = Array.isArray(serviceIds)
+        ? `service_ids=${serviceIds.join(',')}`
+        : `service_id=${serviceIds}`
+      return req<{ slots: { start: string; end: string }[] }>('GET', `/slots/available?date=${date}&${param}&studio=${studio}`, undefined, false)
+        .then(r => r.slots.map(s => s.start))
+    },
     slotsWeek: (start: string, serviceId: number, studio: string) =>
       req<{ days: Record<string, { start: string; end: string }[]> }>(
         'GET', `/slots/week?start=${start}&service_id=${serviceId}&studio=${studio}`, undefined, false
@@ -108,11 +112,19 @@ export const api = {
         : req<StudioConfig>('GET', '/config/me'),
     update: (data: Partial<StudioConfig>) => req<void>('PATCH', '/config', data),
   },
+  vip: {
+    list: () =>
+      req<{ contacts: VipContact[] }>('GET', '/vip').then(r => r.contacts),
+    add: (phone: string, name: string, note?: string) =>
+      req<VipContact>('POST', '/vip', { phone, name, note }),
+    remove: (phone: string) =>
+      req<void>('DELETE', `/vip/${phone}`),
+  },
   client: {
-    register: (email: string, password: string, phone: string) =>
-      req<{ token: string }>('POST', '/client/register', { email, password, phone }, false),
-    login: (email: string, password: string) =>
-      req<{ token: string }>('POST', '/client/login', { email, password }, false),
+    register: (phone: string, password: string, email?: string) =>
+      req<{ token: string }>('POST', '/client/register', { phone, password, email }, false),
+    login: (phone: string, password: string) =>
+      req<{ token: string }>('POST', '/client/login', { phone, password }, false),
     appointments: () =>
       clientReq<{ appointments: ClientAppointment[] }>('GET', '/client/me/appointments').then(r => r.appointments),
   },
@@ -203,8 +215,9 @@ export interface CreateAppt {
   client_name: string
   client_phone?: string
   phone?: string
-  service?: string       // slug (bot)
-  service_id?: number    // numeric (booking page)
+  service?: string        // slug (bot, serviço único)
+  service_id?: number     // numeric (serviço único)
+  service_ids?: number[]  // array (multi-serviço)
   date: string
   start_time: string
   created_via?: string
@@ -245,6 +258,12 @@ export interface TimeBlock {
   end_time:   string
   reason:     string
   created_at: string
+}
+
+export interface VipContact {
+  phone: string
+  name:  string
+  note:  string | null
 }
 
 export interface ClientAppointment {

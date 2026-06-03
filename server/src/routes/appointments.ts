@@ -94,8 +94,9 @@ appointmentsRouter.get('/client', async (req, res) => {
 })
 
 // POST /api/appointments — bot/booking (público)
+// Aceita service_id (único) ou service_ids (array, multi-serviço)
 appointmentsRouter.post('/', async (req, res) => {
-  const { client_name, client_phone, phone, service, service_id, date, start_time, created_via, studio, studio_id } = req.body
+  const { client_name, client_phone, phone, service, service_id, service_ids, date, start_time, created_via, studio, studio_id } = req.body
 
   const rawPhone   = (client_phone ?? phone ?? '').replace(/\D/g, '')
   const clientName = client_name ?? req.body.name
@@ -105,46 +106,53 @@ appointmentsRouter.post('/', async (req, res) => {
 
   // Resolve studio
   let studioId: number | null = null
-  if (studio_id) {
-    studioId = Number(studio_id)
-  } else if (studio) {
-    studioId = await resolveStudio(studio)
-  }
+  if (studio_id) { studioId = Number(studio_id) }
+  else if (studio) { studioId = await resolveStudio(studio) }
   if (!studioId) { res.status(400).json({ error: 'Parâmetro studio é obrigatório.' }); return }
 
-  // Resolve service
-  let svcRow
-  if (service) {
-    svcRow = await pool.query(
-      'SELECT id, slug, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true',
-      [service, studioId]
+  // Resolve serviços — aceita service_ids[] (multi), service_id ou service (slug)
+  let svcIds: number[]
+  let totalDuration: number
+  let primarySvcId: number
+  let primarySvcSlug: string
+
+  if (service_ids && Array.isArray(service_ids) && service_ids.length > 0) {
+    const ids = service_ids.map(Number)
+    const { rows: svcs } = await pool.query(
+      'SELECT id, slug, duration FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true ORDER BY id',
+      [ids, studioId]
     )
-  } else if (service_id) {
-    svcRow = await pool.query(
-      'SELECT id, slug, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true',
-      [service_id, studioId]
-    )
+    if (svcs.length !== ids.length) { res.status(400).json({ error: 'Um ou mais serviços não encontrados.' }); return }
+    svcIds         = svcs.map(s => s.id)
+    totalDuration  = svcs.reduce((sum: number, s: any) => sum + s.duration, 0)
+    primarySvcId   = svcs[0].id
+    primarySvcSlug = svcs[0].slug
   } else {
-    res.status(400).json({ error: 'Informe service (slug) ou service_id.' }); return
+    let svcRow
+    if (service)    { svcRow = await pool.query('SELECT id, slug, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true', [service, studioId]) }
+    else if (service_id) { svcRow = await pool.query('SELECT id, slug, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true', [service_id, studioId]) }
+    else { res.status(400).json({ error: 'Informe service, service_id ou service_ids.' }); return }
+    if (!svcRow.rows[0]) { res.status(400).json({ error: 'Serviço não encontrado ou inativo.' }); return }
+    svcIds         = [svcRow.rows[0].id]
+    totalDuration  = svcRow.rows[0].duration
+    primarySvcId   = svcRow.rows[0].id
+    primarySvcSlug = svcRow.rows[0].slug
   }
 
-  if (!svcRow.rows[0]) { res.status(400).json({ error: 'Serviço não encontrado ou inativo.' }); return }
+  const endTime = addMinutes(start_time, totalDuration)
 
-  const { id: svcId, slug: svcSlug, duration } = svcRow.rows[0]
-  const endTime = addMinutes(start_time, duration)
-
-  const client = await pool.connect()
+  const conn = await pool.connect()
   try {
-    await client.query('BEGIN')
+    await conn.query('BEGIN')
 
-    const clientRes = await client.query(
+    const clientRes = await conn.query(
       `INSERT INTO clients (studio_id, name, phone) VALUES ($1, $2, $3)
        ON CONFLICT (studio_id, phone) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
       [studioId, clientName.trim(), rawPhone]
     )
     const clientId = clientRes.rows[0].id
 
-    const { rows } = await client.query(
+    const { rows } = await conn.query(
       `INSERT INTO appointments (studio_id, client_id, service_id, date, start_time, end_time, created_via)
        SELECT $1, $2, $3, $4, $5::TIME, $6::TIME, $7
        WHERE NOT EXISTS (
@@ -153,18 +161,26 @@ appointmentsRouter.post('/', async (req, res) => {
            AND start_time < $6::TIME AND end_time > $5::TIME
        )
        RETURNING id`,
-      [studioId, clientId, svcId, date, start_time, endTime, created_via ?? 'api']
+      [studioId, clientId, primarySvcId, date, start_time, endTime, created_via ?? 'api']
     )
 
-    await client.query('COMMIT')
+    if (rows.length === 0) { await conn.query('ROLLBACK'); res.status(409).json({ error: 'Horário já ocupado.' }); return }
 
-    if (rows.length === 0) { res.status(409).json({ error: 'Horário já ocupado.' }); return }
-    res.status(201).json({ id: rows[0].id, status: 'confirmed', service: svcSlug, date, start_time: start_time.slice(0,5), end_time: endTime })
+    const apptId = rows[0].id
+    for (let i = 0; i < svcIds.length; i++) {
+      await conn.query(
+        'INSERT INTO appointment_services (appointment_id, service_id, sort_order) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [apptId, svcIds[i], i]
+      )
+    }
+
+    await conn.query('COMMIT')
+    res.status(201).json({ id: apptId, status: 'confirmed', service: primarySvcSlug, date, start_time: start_time.slice(0,5), end_time: endTime })
   } catch (e) {
-    await client.query('ROLLBACK')
+    await conn.query('ROLLBACK')
     throw e
   } finally {
-    client.release()
+    conn.release()
   }
 })
 

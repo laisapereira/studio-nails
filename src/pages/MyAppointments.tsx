@@ -21,7 +21,7 @@ interface Studio {
 
 export default function MyAppointments() {
   const [loggedIn,   setLoggedIn]   = useState(!!localStorage.getItem("client_token"));
-  const [email,      setEmail]      = useState("");
+  const [phone,      setPhone]      = useState("");
   const [password,   setPassword]   = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -51,7 +51,7 @@ export default function MyAppointments() {
     setLoginLoading(true);
     setLoginError(null);
     try {
-      const { token } = await api.client.login(email, password);
+      const { token } = await api.client.login(phone, password);
       localStorage.setItem("client_token", token);
       setLoggedIn(true);
     } catch (err: unknown) {
@@ -90,7 +90,7 @@ export default function MyAppointments() {
             </div>
           )}
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <input type="email" placeholder="Seu e-mail" value={email} onChange={e => setEmail(e.target.value)} required style={fld} />
+            <input type="tel" placeholder="Seu telefone (ex: 71 99999-0001)" value={phone} onChange={e => setPhone(e.target.value)} required style={fld} />
             <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required style={fld} />
             <button
               type="submit"

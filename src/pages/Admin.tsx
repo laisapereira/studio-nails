@@ -305,7 +305,7 @@ export default function Admin() {
           {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => { setSheet(null); navigate(`/book/${slug}`) }} />}
           {sheet==='block'  && <BlockSheet defaultDate={selectedDate} config={config} onConfirm={addBlock} />}
           {sheet==='config'   && <ConfigSheet config={config} onSave={async (c) => { await api.config.update(c); setConfig(prev => ({ ...prev, ...c })); setSheet(null); flash('Configurações salvas') }} />}
-          {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate(`/${slug}/admin/services`) }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
+          {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate(`/${slug}/admin/services`) }} onVip={() => { setSheet(null); navigate(`/${slug}/admin/vip`) }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
           {sheet==='password' && <ChangePasswordSheet onDone={() => { setSheet(null); flash('Senha alterada com sucesso') }} />}
         </Overlay>
       )}
@@ -554,7 +554,7 @@ function BlockSheet({ defaultDate, config, onConfirm }: { defaultDate: string; c
 }
 
 // ── MenuSheet ────────────────────────────────────────────────────
-function MenuSheet({ onServices, onPassword, onConfig, onLogout }: { onServices:()=>void; onPassword:()=>void; onConfig:()=>void; onLogout:()=>void }) {
+function MenuSheet({ onServices, onPassword, onConfig, onVip, onLogout }: { onServices:()=>void; onPassword:()=>void; onConfig:()=>void; onVip:()=>void; onLogout:()=>void }) {
   const row = (icon: string, title: string, sub: string, onClick: ()=>void, danger = false) => (
     <button onClick={onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left', background: T.surfaceAlt, border: 'none', cursor: 'pointer', borderRadius: T.radius, padding: '15px 16px', marginBottom: 10, fontFamily: T.body }}>
       <div style={{ width: 44, height: 44, borderRadius: 12, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', color: danger ? '#c2453b' : T.primary }}><Icon name={icon} size={22} /></div>
@@ -568,10 +568,11 @@ function MenuSheet({ onServices, onPassword, onConfig, onLogout }: { onServices:
   return (
     <SheetShell>
       <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 23, color: T.ink, marginBottom: 16 }}>Menu</div>
-      {row('polish',   'Gerenciar serviços',  'Preços, durações e ativar/desativar', onServices)}
-      {row('calendar', 'Configurações',        'Dias e horários de funcionamento',    onConfig)}
-      {row('shield',   'Alterar senha',        'Troque a senha de acesso ao painel',  onPassword)}
-      {row('close',    'Sair',                 'Encerrar a sessão da Michele',        onLogout, true)}
+      {row('polish',   'Gerenciar serviços',  'Preços, durações e ativar/desativar',      onServices)}
+      {row('calendar', 'Configurações',        'Dias e horários de funcionamento',         onConfig)}
+      {row('shield',   'Contatos VIP',         'Pessoas que não recebem mensagens do bot', onVip)}
+      {row('shield',   'Alterar senha',        'Troque a senha de acesso ao painel',       onPassword)}
+      {row('close',    'Sair',                 'Encerrar a sessão',                        onLogout, true)}
     </SheetShell>
   )
 }
