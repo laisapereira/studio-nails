@@ -281,7 +281,7 @@ export default function Admin() {
 
         {view==='dia'
           ? <DayTimeline appts={selDayAppts} blocks={blocks} today={today} selectedDate={selectedDate} nowMin={nowMin} workStart={workStart} workEnd={workEnd} onTap={a => { setSelAppt(a); setSheet('detail') }} onRemoveBlock={removeBlock} />
-          : <WeekView weekDates={displayDates} today={today} selectedDate={selectedDate} countByDate={weekCount} maxCount={maxCount} onPickDay={iso => { setSelDate(iso); setView('dia') }} />}
+          : <WeekView weekDates={displayDates} today={today} selectedDate={selectedDate} countByDate={weekCount} maxCount={maxCount} workStart={config.work_start} workEnd={config.work_end} onPickDay={iso => { setSelDate(iso); setView('dia') }} />}
 
         <div style={{ height: 96 }} />
       </div>
@@ -396,9 +396,9 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, workStart, wo
 }
 
 // ── WeekView ─────────────────────────────────────────────────────
-interface WeekViewProps { weekDates: Date[]; today: string; selectedDate: string; countByDate: Record<string,number>; maxCount: number; onPickDay: (iso:string)=>void }
+interface WeekViewProps { weekDates: Date[]; today: string; selectedDate: string; countByDate: Record<string,number>; maxCount: number; workStart: string; workEnd: string; onPickDay: (iso:string)=>void }
 
-function WeekView({ weekDates, today, selectedDate, countByDate, maxCount, onPickDay }: WeekViewProps) {
+function WeekView({ weekDates, today, selectedDate, countByDate, maxCount, workStart, workEnd, onPickDay }: WeekViewProps) {
   return (
     <div style={{ padding: '16px 16px 0' }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
@@ -419,7 +419,7 @@ function WeekView({ weekDates, today, selectedDate, countByDate, maxCount, onPic
         })}
       </div>
       <p style={{ fontSize: 12, color: T.inkSoft, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-        Toque num dia para abrir a agenda completa.<br />{config.work_start}–{config.work_end}
+        Toque num dia para abrir a agenda completa.<br />{workStart}–{workEnd}
       </p>
     </div>
   )
