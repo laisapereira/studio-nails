@@ -110,19 +110,23 @@ export default function Booking() {
   const [error, setError] = useState<string | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPass, setAccountPass]   = useState("");
+  const [accountMode,  setAccountMode]  = useState<"register" | "login">("register");
   const [accountState, setAccountState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [accountError, setAccountError] = useState<string | null>(null);
 
-  async function handleCreateAccount(e: FormEvent) {
+  async function handleAccountSubmit(e: FormEvent) {
     e.preventDefault();
     setAccountState("loading");
     setAccountError(null);
     try {
-      const { token } = await api.client.register(accountEmail, accountPass, toRawPhone(booking.phone));
+      const { token } = accountMode === "register"
+        ? await api.client.register(accountEmail, accountPass, toRawPhone(booking.phone))
+        : await api.client.login(accountEmail, accountPass);
       localStorage.setItem("client_token", token);
       setAccountState("done");
     } catch (err: unknown) {
-      setAccountError(err instanceof Error ? err.message : "Erro ao criar conta.");
+      const msg = err instanceof Error ? err.message : "Erro.";
+      setAccountError(msg);
       setAccountState("error");
     }
   }
@@ -853,25 +857,35 @@ export default function Booking() {
                 </div>
               </div>
             </div>
-            {/* Criar conta para acompanhar agendamentos */}
+            {/* Conta — criar ou entrar */}
             {accountState !== "done" ? (
               <form
-                onSubmit={handleCreateAccount}
-                style={{
-                  marginTop: 28,
-                  background: T.surface,
-                  border: `1px solid ${T.line}`,
-                  borderRadius: T.radius,
-                  padding: "18px 16px",
-                  textAlign: "left",
-                }}
+                onSubmit={handleAccountSubmit}
+                style={{ marginTop: 28, background: T.surface, border: `1px solid ${T.line}`, borderRadius: T.radius, padding: "18px 16px", textAlign: "left" }}
               >
                 <div style={{ fontWeight: 700, fontSize: 14, color: T.ink, marginBottom: 4 }}>
                   Acompanhe seus agendamentos
                 </div>
-                <p style={{ fontSize: 12.5, color: T.inkSoft, margin: "0 0 14px" }}>
-                  Crie uma conta para ver todos os seus agendamentos em um só lugar.
-                </p>
+
+                {/* toggle */}
+                <div style={{ display: "flex", gap: 0, marginBottom: 14, border: `1px solid ${T.line}`, borderRadius: T.radiusSm, overflow: "hidden" }}>
+                  {(["register", "login"] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => { setAccountMode(mode); setAccountError(null); }}
+                      style={{
+                        flex: 1, padding: "8px", fontSize: 13, fontWeight: 700,
+                        border: "none", cursor: "pointer", fontFamily: T.body,
+                        background: accountMode === mode ? T.primary : T.surface,
+                        color:      accountMode === mode ? T.primaryInk : T.inkSoft,
+                      }}
+                    >
+                      {mode === "register" ? "Criar conta" : "Já tenho conta"}
+                    </button>
+                  ))}
+                </div>
+
                 {accountError && (
                   <div style={{ background: "#fee2e2", color: "#991b1b", borderRadius: T.radiusSm, padding: "8px 12px", fontSize: 13, marginBottom: 10 }}>
                     {accountError}
@@ -887,7 +901,7 @@ export default function Booking() {
                 />
                 <input
                   type="password"
-                  placeholder="Criar senha (mín. 6 caracteres)"
+                  placeholder={accountMode === "register" ? "Criar senha (mín. 6 caracteres)" : "Sua senha"}
                   value={accountPass}
                   onChange={e => setAccountPass(e.target.value)}
                   required
@@ -897,25 +911,22 @@ export default function Booking() {
                   type="submit"
                   disabled={accountState === "loading"}
                   style={{
-                    width: "100%",
-                    background: T.primary,
-                    color: T.primaryInk,
-                    border: "none",
-                    borderRadius: T.radius,
-                    padding: "13px",
-                    fontSize: 14.5,
-                    fontWeight: 700,
+                    width: "100%", background: T.primary, color: T.primaryInk,
+                    border: "none", borderRadius: T.radius, padding: "13px",
+                    fontSize: 14.5, fontWeight: 700, fontFamily: T.body,
                     cursor: accountState === "loading" ? "default" : "pointer",
                     opacity: accountState === "loading" ? 0.7 : 1,
-                    fontFamily: T.body,
                   }}
                 >
-                  {accountState === "loading" ? "Criando conta…" : "Criar conta"}
+                  {accountState === "loading"
+                    ? (accountMode === "register" ? "Criando…" : "Entrando…")
+                    : (accountMode === "register" ? "Criar conta" : "Entrar")}
                 </button>
               </form>
             ) : (
               <div style={{ marginTop: 22, background: T.primarySoft, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, color: T.primary, fontWeight: 600, textAlign: "center" }}>
-                Conta criada! Acesse <a href="/meus-agendamentos" style={{ color: T.primary }}>seus agendamentos</a> a qualquer hora.
+                {accountMode === "register" ? "Conta criada! " : "Bem-vinda de volta! "}
+                Acesse <a href="/meus-agendamentos" style={{ color: T.primary }}>seus agendamentos</a>.
               </div>
             )}
 
@@ -923,6 +934,7 @@ export default function Booking() {
               onClick={() => {
                 setBooking({ service: null, date: "", time: "", name: "", phone: "" });
                 setAccountState("idle");
+                setAccountMode("register");
                 setAccountEmail("");
                 setAccountPass("");
                 go("service");
