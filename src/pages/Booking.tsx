@@ -4,7 +4,7 @@ import { api, Service, StudioConfig } from "../lib/api";
 import { Icon } from "../components/Icon";
 import { T, serviceTint, serviceIcon } from "../theme/terra";
 
-type Step = "service" | "date" | "time" | "info" | "confirm" | "success";
+type Step = "home" | "service" | "date" | "time" | "info" | "confirm" | "success";
 
 type BookingState = {
   services: Service[];
@@ -92,7 +92,7 @@ function bDate(iso: string) {
 
 export default function Booking() {
   const { slug = "" } = useParams<{ slug: string }>();
-  const [step, setStep] = useState<Step>("service");
+  const [step, setStep] = useState<Step>("home");
   const [services, setServices] = useState<Service[]>([]);
   const [config, setConfig] = useState<StudioConfig>({
     studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00',
@@ -254,7 +254,7 @@ export default function Booking() {
             padding: "16px 20px 12px",
           }}
         >
-          {step !== "service" && step !== "success" && (
+          {step !== "home" && step !== "service" && step !== "success" && (
             <button
               onClick={() => go(STEPS[Math.max(0, idx - 1)])}
               style={{
@@ -313,7 +313,7 @@ export default function Booking() {
           </div>
         </div>
 
-        {step !== "success" && (
+        {step !== "home" && step !== "success" && (
           <div style={{ display: "flex", gap: 5, padding: "0 20px 14px" }}>
             {STEPS.map((_, i) => (
               <div
@@ -359,7 +359,7 @@ export default function Booking() {
         )}
 
         {/* Chips */}
-        {booking.services.length > 0 && step !== "service" && step !== "success" && (
+        {booking.services.length > 0 && step !== "home" && step !== "service" && step !== "success" && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 20 }}>
             {[
               booking.services.map(s => s.name).join(" + "),
@@ -372,6 +372,65 @@ export default function Booking() {
                   {x}
                 </span>
               ))}
+          </div>
+        )}
+
+        {/* STEP: home */}
+        {step === "home" && (
+          <div style={{ paddingTop: 16 }}>
+            <div
+              style={{
+                fontFamily: T.heading,
+                fontWeight: T.headingWeight,
+                fontSize: 26,
+                color: T.ink,
+                marginBottom: 6,
+              }}
+            >
+              Olá! 💅
+            </div>
+            <p style={{ fontSize: 14, color: T.inkSoft, marginBottom: 28, lineHeight: 1.5 }}>
+              O que você deseja fazer?
+            </p>
+
+            <button
+              onClick={() => go("service")}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 16,
+                padding: "18px 20px", marginBottom: 12,
+                background: T.primary, color: T.primaryInk,
+                border: "none", borderRadius: T.radius,
+                cursor: "pointer", fontFamily: T.body, textAlign: "left",
+                boxShadow: "0 8px 20px -8px rgba(0,0,0,0.35)",
+              }}
+            >
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="calendar" size={22} color={T.primaryInk} sw={1.5} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>Agendar novo horário</div>
+                <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 2 }}>Escolha serviço, data e horário</div>
+              </div>
+            </button>
+
+            <a
+              href={`/${slug}/meus-agendamentos`}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 16,
+                padding: "18px 20px",
+                background: T.surface, color: T.ink,
+                border: `1.5px solid ${T.line}`, borderRadius: T.radius,
+                cursor: "pointer", fontFamily: T.body, textDecoration: "none",
+              }}
+            >
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: T.primarySoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="clock" size={22} color={T.primary} sw={1.5} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>Meus agendamentos</div>
+                <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>Veja seus próximos horários</div>
+              </div>
+            </a>
           </div>
         )}
 
@@ -782,7 +841,7 @@ export default function Booking() {
               </div>
             </div>
             <a
-              href="/meus-agendamentos"
+              href={`/${slug}/meus-agendamentos`}
               style={{ display: "block", marginTop: 22, background: T.primarySoft, color: T.primary, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none" }}
             >
               Ver meus agendamentos →
@@ -791,7 +850,7 @@ export default function Booking() {
             <button
               onClick={() => {
                 setBooking({ services: [], date: "", time: "", name: "", phone: "" });
-                go("service");
+                go("home");
               }}
               style={{
                 marginTop: 16,
