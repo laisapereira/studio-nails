@@ -1,44 +1,40 @@
 import { useState, useEffect, ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
-import Booking from './pages/Booking'
-import Admin   from './pages/Admin'
-import Login   from './pages/Login'
+import Booking  from './pages/Booking'
+import Admin    from './pages/Admin'
+import Services from './pages/Services'
+import Login    from './pages/Login'
+import Setup    from './pages/Setup'
 
-function PrivateRoute({ session, children }: { session: Session | null; children: ReactNode }) {
-  if (session === undefined) return null   // ainda carregando
-  return session ? <>{children}</> : <Navigate to="/login" replace />
+function PrivateRoute({ children }: { children: ReactNode }) {
+  const token = localStorage.getItem('token')
+  return token ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s ?? null)
-    })
-
-    return () => subscription.unsubscribe()
+    setAuthed(!!localStorage.getItem('token'))
   }, [])
+
+  if (authed === null) return null
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"      element={<Booking />} />
-        <Route path="/login" element={session ? <Navigate to="/admin" replace /> : <Login />} />
-        <Route
-          path="/admin"
-          element={
-            <PrivateRoute session={session ?? null}>
-              <Admin />
-            </PrivateRoute>
-          }
-        />
+        {/* Página pública de agendamento — cada estúdio tem seu próprio slug */}
+        <Route path="/book/:slug" element={<Booking />} />
+
+        {/* Área admin */}
+        <Route path="/setup" element={authed ? <Navigate to="/admin" replace /> : <Setup onSetup={() => setAuthed(true)} />} />
+        <Route path="/login" element={authed ? <Navigate to="/admin" replace /> : <Login onLogin={() => setAuthed(true)} />} />
+        <Route path="/admin"          element={<PrivateRoute><Admin /></PrivateRoute>} />
+        <Route path="/admin/services" element={<PrivateRoute><Services /></PrivateRoute>} />
+
+        {/* Raiz redireciona para login */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   )

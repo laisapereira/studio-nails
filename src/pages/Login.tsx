@@ -1,132 +1,326 @@
-import { useState, FormEvent, CSSProperties } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { Icon } from "../components/Icon";
+import { T } from "../theme/terra";
 
-export default function Login() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+interface Props {
+  onLogin: () => void;
+}
+
+export default function Login({ onLogin }: Props) {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-
-    setLoading(false)
-    if (err) {
-      setError('E-mail ou senha incorretos.')
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const { token } = await api.auth.login(email, password);
+      localStorage.setItem("token", token);
+      onLogin();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Credenciais incorretas");
+    } finally {
+      setLoading(false);
     }
-    // Sucesso: App.tsx detecta mudança de sessão e redireciona para /admin
   }
 
+  const fld = {
+    width: "100%",
+    boxSizing: "border-box" as const,
+    padding: "13px 14px",
+    border: `1.5px solid ${T.line}`,
+    borderRadius: T.radiusSm,
+    fontSize: 15,
+    color: T.ink,
+    background: T.surface,
+    fontFamily: T.body,
+    outline: "none",
+  };
+
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <div style={s.logo}>💅</div>
-        <h1 style={s.title}>Studio da Michele</h1>
-        <p style={s.sub}>Acesso exclusivo</p>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: T.bg,
+        fontFamily: T.body,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Decorative top band */}
+      <div
+        style={{
+          position: "relative",
+          paddingTop: 64,
+          paddingBottom: 30,
+          textAlign: "center",
+          background: T.primary,
+          color: T.primaryInk,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            width: 220,
+            height: 220,
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.14)",
+            top: -70,
+            right: -60,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 150,
+            height: 150,
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            bottom: -50,
+            left: -40,
+          }}
+        />
+        <div
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 999,
+            background: "rgba(255,255,255,0.16)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <Icon name="polish" size={30} color={T.primaryInk} sw={1.5} />
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            letterSpacing: 4,
+            textTransform: "uppercase",
+            opacity: 0.8,
+            fontWeight: 600,
+          }}
+        >
+          Studio
+        </div>
+        <div
+          style={{
+            fontFamily: T.heading,
+            fontWeight: T.headingWeight,
+            fontSize: 34,
+            lineHeight: 1.05,
+            marginTop: 4,
+          }}
+        >
+          Agenda
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: 3,
+            textTransform: "uppercase",
+            opacity: 0.85,
+            marginTop: 6,
+          }}
+        >
+          Unhas
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} style={s.form}>
-          {error && <div style={s.error}>{error}</div>}
+      {/* Form */}
+      <div
+        style={{
+          flex: 1,
+          padding: "30px 24px",
+          maxWidth: 440,
+          width: "100%",
+          margin: "0 auto",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: T.heading,
+            fontWeight: T.headingWeight,
+            fontSize: 25,
+            color: T.ink,
+            textAlign: "center",
+          }}
+        >
+          Painel de agendamentos
+        </div>
+        <p
+          style={{
+            fontSize: 13,
+            color: T.inkSoft,
+            textAlign: "center",
+            marginTop: 6,
+            marginBottom: 26,
+          }}
+        >
+          Acesso restrito — entre para ver sua agenda.
+        </p>
 
-          <div style={s.group}>
-            <label style={s.label}>E-mail</label>
-            <input
-              style={s.input}
-              type="email"
-              autoComplete="email"
-              placeholder="michele@exemplo.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
+        {error && (
+          <div
+            style={{
+              background: "#fee2e2",
+              color: "#991b1b",
+              border: "1px solid #fca5a5",
+              borderRadius: T.radiusSm,
+              padding: "11px 14px",
+              fontSize: 14,
+              marginBottom: 20,
+            }}
+          >
+            {error}
           </div>
+        )}
 
-          <div style={s.group}>
-            <label style={s.label}>Senha</label>
+        <form onSubmit={handleSubmit}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: T.inkSoft,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              marginBottom: 6,
+            }}
+          >
+            E-mail
+          </label>
+          <input
+            style={fld}
+            type="email"
+            autoComplete="email"
+            placeholder="michele@studio.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <div style={{ height: 16 }} />
+
+          <label
+            style={{
+              display: "block",
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: T.inkSoft,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              marginBottom: 6,
+            }}
+          >
+            Senha
+          </label>
+          <div style={{ position: "relative" }}>
             <input
-              style={s.input}
-              type="password"
+              style={{ ...fld, paddingRight: 56 }}
+              type={showPass ? "text" : "password"}
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPass((s) => !s)}
+              style={{
+                position: "absolute",
+                right: 6,
+                top: 6,
+                bottom: 6,
+                width: 44,
+                border: "none",
+                background: "transparent",
+                color: T.inkSoft,
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: T.body,
+              }}
+            >
+              {showPass ? "ocultar" : "ver"}
+            </button>
           </div>
 
-          <button style={{ ...s.btn, opacity: loading ? 0.7 : 1 }} disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: 26,
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 9,
+              background: T.primary,
+              color: T.primaryInk,
+              border: "none",
+              borderRadius: T.radius,
+              padding: "16px",
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: loading ? "default" : "pointer",
+              opacity: loading ? 0.7 : 1,
+              fontFamily: T.body,
+              boxShadow: "0 10px 24px -10px rgba(0,0,0,0.4)",
+            }}
+          >
+            {loading ? "Entrando…" : "Entrar"}
+            {!loading && (
+              <Icon name="arrowRight" size={19} color={T.primaryInk} />
+            )}
           </button>
         </form>
+
+        <button
+          onClick={() => navigate("/setup")}
+          style={{
+            marginTop: 18,
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            color: T.inkSoft,
+            fontSize: 13.5,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: T.body,
+          }}
+        >
+          Criar novo estúdio →
+        </button>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 7,
+            marginTop: 20,
+            color: T.inkSoft,
+          }}
+        >
+          <Icon name="shield" size={15} color={T.accent} />
+          <span style={{ fontSize: 11.5 }}>
+            Conexão segura · acesso restrito
+          </span>
+        </div>
       </div>
     </div>
-  )
-}
-
-const s: Record<string, CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    background: '#fdf2f8',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px 16px',
-    fontFamily: "'Segoe UI', system-ui, sans-serif",
-  },
-  card: {
-    background: '#fff',
-    borderRadius: 20,
-    padding: '40px 32px',
-    width: '100%',
-    maxWidth: 380,
-    boxShadow: '0 4px 24px rgba(214,51,132,0.10)',
-    textAlign: 'center',
-  },
-  logo: { fontSize: 52, marginBottom: 12 },
-  title: { margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: '#831843' },
-  sub: { margin: '0 0 28px', fontSize: 14, color: '#9ca3af' },
-  form: { textAlign: 'left' },
-  error: {
-    background: '#fee2e2',
-    color: '#991b1b',
-    border: '1px solid #fca5a5',
-    borderRadius: 10,
-    padding: '10px 14px',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  group: { marginBottom: 18 },
-  label: {
-    display: 'block',
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#374151',
-    marginBottom: 6,
-  },
-  input: {
-    width: '100%',
-    padding: '12px 14px',
-    border: '2px solid #fce7f3',
-    borderRadius: 10,
-    fontSize: 15,
-    outline: 'none',
-    boxSizing: 'border-box',
-    color: '#1f2937',
-    background: '#fff',
-  },
-  btn: {
-    width: '100%',
-    padding: '14px',
-    background: '#d63384',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 12,
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: 'pointer',
-    marginTop: 8,
-  },
+  );
 }
