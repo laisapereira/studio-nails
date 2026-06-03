@@ -121,12 +121,8 @@ export const api = {
       req<void>('DELETE', `/vip/${phone}`),
   },
   client: {
-    register: (phone: string, password: string, email?: string) =>
-      req<{ token: string }>('POST', '/client/register', { phone, password, email }, false),
-    login: (phone: string, password: string) =>
-      req<{ token: string }>('POST', '/client/login', { phone, password }, false),
-    appointments: () =>
-      clientReq<{ appointments: ClientAppointment[] }>('GET', '/client/me/appointments').then(r => r.appointments),
+    lookup: (phone: string) =>
+      req<{ client_name: string; appointments: ClientAppointment[] }>('POST', '/client/appointments', { phone }, false),
   },
   blocks: {
     list: (start?: string, end?: string) => {

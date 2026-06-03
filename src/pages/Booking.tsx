@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, FormEvent } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { api, Service, StudioConfig } from "../lib/api";
 import { Icon } from "../components/Icon";
@@ -108,28 +108,6 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accountEmail, setAccountEmail] = useState("");
-  const [accountPass, setAccountPass]   = useState("");
-  const [accountMode,  setAccountMode]  = useState<"register" | "login">("register");
-  const [accountState, setAccountState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [accountError, setAccountError] = useState<string | null>(null);
-
-  async function handleAccountSubmit(e: FormEvent) {
-    e.preventDefault();
-    setAccountState("loading");
-    setAccountError(null);
-    try {
-      const rawPhone = toRawPhone(booking.phone);
-      const { token } = accountMode === "register"
-        ? await api.client.register(rawPhone, accountPass, accountEmail || undefined)
-        : await api.client.login(rawPhone, accountPass);
-      localStorage.setItem("client_token", token);
-      setAccountState("done");
-    } catch (err: unknown) {
-      setAccountError(err instanceof Error ? err.message : "Erro.");
-      setAccountState("error");
-    }
-  }
 
   const set = (patch: Partial<BookingState>) =>
     setBooking((prev) => ({ ...prev, ...patch }));
@@ -803,92 +781,16 @@ export default function Booking() {
                 </div>
               </div>
             </div>
-            {/* Conta — criar ou entrar */}
-            {accountState !== "done" ? (
-              <form
-                onSubmit={handleAccountSubmit}
-                style={{ marginTop: 28, background: T.surface, border: `1px solid ${T.line}`, borderRadius: T.radius, padding: "18px 16px", textAlign: "left" }}
-              >
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.ink, marginBottom: 4 }}>
-                  Acompanhe seus agendamentos
-                </div>
-
-                {/* toggle */}
-                <div style={{ display: "flex", gap: 0, marginBottom: 14, border: `1px solid ${T.line}`, borderRadius: T.radiusSm, overflow: "hidden" }}>
-                  {(["register", "login"] as const).map(mode => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => { setAccountMode(mode); setAccountError(null); }}
-                      style={{
-                        flex: 1, padding: "8px", fontSize: 13, fontWeight: 700,
-                        border: "none", cursor: "pointer", fontFamily: T.body,
-                        background: accountMode === mode ? T.primary : T.surface,
-                        color:      accountMode === mode ? T.primaryInk : T.inkSoft,
-                      }}
-                    >
-                      {mode === "register" ? "Criar conta" : "Já tenho conta"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* telefone já preenchido — só exibir */}
-                <div style={{ background: T.bg, border: `1px solid ${T.line}`, borderRadius: T.radiusSm, padding: "11px 14px", fontSize: 14, color: T.inkSoft, marginBottom: 10 }}>
-                  📱 {booking.phone}
-                </div>
-
-                {accountError && (
-                  <div style={{ background: "#fee2e2", color: "#991b1b", borderRadius: T.radiusSm, padding: "8px 12px", fontSize: 13, marginBottom: 10 }}>
-                    {accountError}
-                  </div>
-                )}
-                <input
-                  type="password"
-                  placeholder={accountMode === "register" ? "Criar senha (mín. 6 caracteres)" : "Sua senha"}
-                  value={accountPass}
-                  onChange={e => setAccountPass(e.target.value)}
-                  required
-                  style={{ ...fld, marginBottom: 10 }}
-                />
-                {accountMode === "register" && (
-                  <input
-                    type="email"
-                    placeholder="E-mail (opcional)"
-                    value={accountEmail}
-                    onChange={e => setAccountEmail(e.target.value)}
-                    style={{ ...fld, marginBottom: 14 }}
-                  />
-                )}
-                <button
-                  type="submit"
-                  disabled={accountState === "loading"}
-                  style={{
-                    width: "100%", background: T.primary, color: T.primaryInk,
-                    border: "none", borderRadius: T.radius, padding: "13px",
-                    fontSize: 14.5, fontWeight: 700, fontFamily: T.body,
-                    cursor: accountState === "loading" ? "default" : "pointer",
-                    opacity: accountState === "loading" ? 0.7 : 1,
-                  }}
-                >
-                  {accountState === "loading"
-                    ? (accountMode === "register" ? "Criando…" : "Entrando…")
-                    : (accountMode === "register" ? "Criar conta" : "Entrar")}
-                </button>
-              </form>
-            ) : (
-              <div style={{ marginTop: 22, background: T.primarySoft, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, color: T.primary, fontWeight: 600, textAlign: "center" }}>
-                {accountMode === "register" ? "Conta criada! " : "Bem-vinda de volta! "}
-                Acesse <a href="/meus-agendamentos" style={{ color: T.primary }}>seus agendamentos</a>.
-              </div>
-            )}
+            <a
+              href="/meus-agendamentos"
+              style={{ display: "block", marginTop: 22, background: T.primarySoft, color: T.primary, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none" }}
+            >
+              Ver meus agendamentos →
+            </a>
 
             <button
               onClick={() => {
                 setBooking({ services: [], date: "", time: "", name: "", phone: "" });
-                setAccountState("idle");
-                setAccountMode("register");
-                setAccountEmail("");
-                setAccountPass("");
                 go("service");
               }}
               style={{
