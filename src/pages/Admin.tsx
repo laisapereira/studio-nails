@@ -302,7 +302,7 @@ export default function Admin() {
       {sheet && (
         <Overlay onClose={() => setSheet(null)}>
           {sheet==='detail' && selAppt && <DetailSheet appt={selAppt} onCancel={cancelAppt} cancelling={cancelling} />}
-          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => setSheet(null)} />}
+          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => { setSheet(null); navigate(`/book/${slug}`) }} />}
           {sheet==='block'  && <BlockSheet defaultDate={selectedDate} config={config} onConfirm={addBlock} />}
           {sheet==='config'   && <ConfigSheet config={config} onSave={async (c) => { await api.config.update(c); setConfig(prev => ({ ...prev, ...c })); setSheet(null); flash('Configurações salvas') }} />}
           {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate(`/${slug}/admin/services`) }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
