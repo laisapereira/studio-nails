@@ -442,9 +442,13 @@ function Overlay({ children, onClose }: { children: ReactNode; onClose: () => vo
 
 function SheetShell({ children }: { children: ReactNode }) {
   return (
-    <div style={{ background: T.surface, borderRadius: `${T.radius+8}px ${T.radius+8}px 0 0`, padding: '10px 20px 40px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-      <div style={{ width: 38, height: 4, borderRadius: 999, background: T.line, margin: '0 auto 16px' }} />
-      {children}
+    <div style={{ background: T.surface, borderRadius: `${T.radius+8}px ${T.radius+8}px 0 0`, boxShadow: '0 -10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '10px 20px 0', flexShrink: 0 }}>
+        <div style={{ width: 38, height: 4, borderRadius: 999, background: T.line, margin: '0 auto 16px' }} />
+      </div>
+      <div style={{ overflowY: 'auto', padding: '0 20px 40px', flex: 1 }}>
+        {children}
+      </div>
     </div>
   )
 }
