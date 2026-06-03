@@ -8,7 +8,8 @@ clientAuthRouter.post('/appointments', async (req, res) => {
   const { phone } = req.body as { phone: string }
   if (!phone) { res.status(400).json({ error: 'phone é obrigatório.' }); return }
 
-  const rawPhone = phone.replace(/\D/g, '')
+  const digits   = phone.replace(/\D/g, '')
+  const rawPhone = digits.length === 11 ? `55${digits}` : digits
 
   const { rows } = await pool.query(`
     SELECT
