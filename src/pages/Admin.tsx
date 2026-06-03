@@ -6,8 +6,6 @@ import { T, serviceTint, serviceIcon } from '../theme/terra'
 
 // ── constants ────────────────────────────────────────────────────
 const PX_PER_MIN = 80 / 60
-const WORK_START  = 9 * 60
-const WORK_END    = 18 * 60
 
 const DOW      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DOW_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -35,9 +33,9 @@ function getWeekDates(ref: Date): Date[] {
 // JS getDay(): Sun=0 Mon=1..Sat=6 → ISODOW: Mon=1..Sat=6 Sun=7
 function jsToIsodow(jsDow: number): number { return jsDow === 0 ? 7 : jsDow }
 
-function allTimeSlots(): string[] {
+function allTimeSlots(workStart: number, workEnd: number): string[] {
   const slots: string[] = []
-  for (let m = WORK_START; m <= WORK_END; m += 30) slots.push(hhmm(m))
+  for (let m = workStart; m <= workEnd; m += 30) slots.push(hhmm(m))
   return slots
 }
 
@@ -51,6 +49,8 @@ export default function Admin() {
   const [appts, setAppts]       = useState<Appointment[]>([])
   const [blocks, setBlocks]     = useState<TimeBlock[]>([])
   const [config, setConfig]     = useState<StudioConfig>({ studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00' })
+  const workStart = timeMin(config.work_start)
+  const workEnd   = timeMin(config.work_end)
   const [stats, setStats]       = useState<DashStats | null>(null)
   const [loading, setLoading]   = useState(false)
   const [sheet, setSheet]       = useState<'detail' | 'add' | 'block' | 'menu' | 'password' | 'config' | null>(null)
@@ -322,7 +322,7 @@ interface DayTimelineProps {
 }
 
 function DayTimeline({ appts, blocks, today, selectedDate, nowMin, onTap, onRemoveBlock }: DayTimelineProps) {
-  const total = (WORK_END - WORK_START) * PX_PER_MIN
+  const total = (workEnd - workStart) * PX_PER_MIN
   const hours = Array.from({ length: 10 }, (_, i) => 9+i)
 
   return (
@@ -339,7 +339,7 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, onTap, onRemo
 
         {appts.map(a => {
           const startMin = timeMin(a.start_time), endMin = timeMin(a.end_time)
-          const top    = (startMin - WORK_START) * PX_PER_MIN
+          const top    = (startMin - workStart) * PX_PER_MIN
           const height = Math.max((endMin - startMin) * PX_PER_MIN - 4, 26)
           const c      = serviceTint(a.service_id)
           const isNow  = selectedDate===today && nowMin>=startMin && nowMin<endMin
@@ -364,7 +364,7 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, onTap, onRemo
         {blocks.filter(b => b.date === selectedDate).map(b => {
           const startMin = timeMin(b.start_time)
           const endMin   = timeMin(b.end_time)
-          const top    = (startMin - WORK_START) * PX_PER_MIN
+          const top    = (startMin - workStart) * PX_PER_MIN
           const height = Math.max((endMin - startMin) * PX_PER_MIN - 4, 26)
           return (
             <div key={b.id} style={{ position: 'absolute', top, left: 8, right: 0, height, borderRadius: T.radiusSm, border: `1px dashed ${T.line}`, background: `repeating-linear-gradient(45deg,${T.surfaceAlt},${T.surfaceAlt} 7px,transparent 7px,transparent 14px)`, display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', color: T.inkSoft, cursor: 'pointer' }}
@@ -376,8 +376,8 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, onTap, onRemo
           )
         })}
 
-        {selectedDate===today && nowMin>=WORK_START && nowMin<=WORK_END && (
-          <div style={{ position: 'absolute', left: -50, right: 0, top: (nowMin-WORK_START)*PX_PER_MIN, height: 2, background: T.primary, zIndex: 5 }}>
+        {selectedDate===today && nowMin>=workStart && nowMin<=workEnd && (
+          <div style={{ position: 'absolute', left: -50, right: 0, top: (nowMin-workStart)*PX_PER_MIN, height: 2, background: T.primary, zIndex: 5 }}>
             <div style={{ position: 'absolute', left: -2, top: -4, width: 9, height: 9, borderRadius: 999, background: T.primary }} />
             <span style={{ position: 'absolute', right: 0, top: -16, fontSize: 9.5, fontWeight: 700, color: T.primary, background: T.bg, padding: '0 4px' }}>{hhmm(nowMin)}</span>
           </div>
@@ -418,7 +418,7 @@ function WeekView({ weekDates, today, selectedDate, countByDate, maxCount, onPic
         })}
       </div>
       <p style={{ fontSize: 12, color: T.inkSoft, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-        Toque num dia para abrir a agenda completa.<br />Segunda a sexta · 09:00–18:00
+        Toque num dia para abrir a agenda completa.<br />{config.work_start}–{config.work_end}
       </p>
     </div>
   )
@@ -503,13 +503,13 @@ function BlockSheet({ defaultDate, config, onConfirm }: { defaultDate: string; c
   const presets = [
     { label: 'Almoço',       start: '12:00', end: '13:00' },
     { label: 'Pausa',        start: '15:00', end: '15:30' },
-    { label: 'Folga (tarde)',start: '13:00', end: '18:00' },
+    { label: 'Folga (tarde)',start: '13:00', end: config.work_end },
   ]
   const [date, setDate]     = useState(defaultDate)
   const [start, setStart]   = useState('12:00')
   const [end, setEnd]       = useState('13:00')
   const [reason, setReason] = useState('Almoço')
-  const times = allTimeSlots()
+  const times = allTimeSlots(timeMin(config.work_start), timeMin(config.work_end))
 
   return (
     <SheetShell>
@@ -594,7 +594,7 @@ function ConfigSheet({ config, onSave }: { config: StudioConfig; onSave: (c: Par
   const [end, setEnd]       = useState(config.work_end)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
-  const times = allTimeSlots()
+  const times = allTimeSlots(timeMin(config.work_start), timeMin(config.work_end))
 
   const slug    = getSlug()
   const bookUrl = `${window.location.origin}/book/${slug}`
