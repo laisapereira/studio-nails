@@ -145,7 +145,7 @@ export default function Setup() {
         </form>
 
         <p style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: T.inkSoft }}>
-          Já tem conta? Acesse <strong>/{seu-slug}/login</strong>
+          Já tem conta? Acesse <strong>/seu-slug/login</strong>
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 24, color: T.inkSoft }}>
