@@ -1,10 +1,11 @@
 import { ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Booking  from './pages/Booking'
-import Admin    from './pages/Admin'
-import Services from './pages/Services'
-import Login    from './pages/Login'
-import Setup    from './pages/Setup'
+import Booking        from './pages/Booking'
+import Admin          from './pages/Admin'
+import Services       from './pages/Services'
+import Login          from './pages/Login'
+import Setup          from './pages/Setup'
+import MyAppointments from './pages/MyAppointments'
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('token')
@@ -16,7 +17,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Página pública de agendamento */}
-        <Route path="/book/:slug" element={<Booking />} />
+        <Route path="/book/:slug"          element={<Booking />} />
+        <Route path="/meus-agendamentos"   element={<MyAppointments />} />
 
         {/* Setup global — criação de novo estúdio */}
         <Route path="/setup" element={<Setup />} />

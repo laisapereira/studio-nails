@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { api, Service, StudioConfig } from "../lib/api";
 import { Icon } from "../components/Icon";
@@ -108,6 +108,24 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPass, setAccountPass]   = useState("");
+  const [accountState, setAccountState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [accountError, setAccountError] = useState<string | null>(null);
+
+  async function handleCreateAccount(e: FormEvent) {
+    e.preventDefault();
+    setAccountState("loading");
+    setAccountError(null);
+    try {
+      const { token } = await api.client.register(accountEmail, accountPass, toRawPhone(booking.phone));
+      localStorage.setItem("client_token", token);
+      setAccountState("done");
+    } catch (err: unknown) {
+      setAccountError(err instanceof Error ? err.message : "Erro ao criar conta.");
+      setAccountState("error");
+    }
+  }
 
   const set = (patch: Partial<BookingState>) =>
     setBooking((prev) => ({ ...prev, ...patch }));
@@ -835,19 +853,82 @@ export default function Booking() {
                 </div>
               </div>
             </div>
+            {/* Criar conta para acompanhar agendamentos */}
+            {accountState !== "done" ? (
+              <form
+                onSubmit={handleCreateAccount}
+                style={{
+                  marginTop: 28,
+                  background: T.surface,
+                  border: `1px solid ${T.line}`,
+                  borderRadius: T.radius,
+                  padding: "18px 16px",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.ink, marginBottom: 4 }}>
+                  Acompanhe seus agendamentos
+                </div>
+                <p style={{ fontSize: 12.5, color: T.inkSoft, margin: "0 0 14px" }}>
+                  Crie uma conta para ver todos os seus agendamentos em um só lugar.
+                </p>
+                {accountError && (
+                  <div style={{ background: "#fee2e2", color: "#991b1b", borderRadius: T.radiusSm, padding: "8px 12px", fontSize: 13, marginBottom: 10 }}>
+                    {accountError}
+                  </div>
+                )}
+                <input
+                  type="email"
+                  placeholder="Seu e-mail"
+                  value={accountEmail}
+                  onChange={e => setAccountEmail(e.target.value)}
+                  required
+                  style={{ ...fld, marginBottom: 10 }}
+                />
+                <input
+                  type="password"
+                  placeholder="Criar senha (mín. 6 caracteres)"
+                  value={accountPass}
+                  onChange={e => setAccountPass(e.target.value)}
+                  required
+                  style={{ ...fld, marginBottom: 14 }}
+                />
+                <button
+                  type="submit"
+                  disabled={accountState === "loading"}
+                  style={{
+                    width: "100%",
+                    background: T.primary,
+                    color: T.primaryInk,
+                    border: "none",
+                    borderRadius: T.radius,
+                    padding: "13px",
+                    fontSize: 14.5,
+                    fontWeight: 700,
+                    cursor: accountState === "loading" ? "default" : "pointer",
+                    opacity: accountState === "loading" ? 0.7 : 1,
+                    fontFamily: T.body,
+                  }}
+                >
+                  {accountState === "loading" ? "Criando conta…" : "Criar conta"}
+                </button>
+              </form>
+            ) : (
+              <div style={{ marginTop: 22, background: T.primarySoft, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, color: T.primary, fontWeight: 600, textAlign: "center" }}>
+                Conta criada! Acesse <a href="/meus-agendamentos" style={{ color: T.primary }}>seus agendamentos</a> a qualquer hora.
+              </div>
+            )}
+
             <button
               onClick={() => {
-                setBooking({
-                  service: null,
-                  date: "",
-                  time: "",
-                  name: "",
-                  phone: "",
-                });
+                setBooking({ service: null, date: "", time: "", name: "", phone: "" });
+                setAccountState("idle");
+                setAccountEmail("");
+                setAccountPass("");
                 go("service");
               }}
               style={{
-                marginTop: 22,
+                marginTop: 16,
                 background: "transparent",
                 border: "none",
                 color: T.primary,

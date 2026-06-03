@@ -8,6 +8,7 @@ import { dashboardRouter } from './routes/dashboard.js'
 import { slotsRouter } from './routes/slots.js'
 import { configRouter } from './routes/config.js'
 import { blocksRouter } from './routes/blocks.js'
+import { clientAuthRouter } from './routes/clientAuth.js'
 
 const app = express()
 
@@ -21,6 +22,7 @@ app.use('/api/dashboard',    dashboardRouter)
 app.use('/api/slots',        slotsRouter)
 app.use('/api/config',       configRouter)
 app.use('/api/blocks',       blocksRouter)
+app.use('/api/client',       clientAuthRouter)
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 

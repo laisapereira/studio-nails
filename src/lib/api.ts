@@ -4,6 +4,27 @@ function token(): string | null {
   return localStorage.getItem('token')
 }
 
+function clientToken(): string | null {
+  return localStorage.getItem('client_token')
+}
+
+async function clientReq<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const t = clientToken()
+  if (t) headers['Authorization'] = `Bearer ${t}`
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? res.statusText)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
 async function req<T>(
   method: string,
   path: string,
@@ -86,6 +107,14 @@ export const api = {
         ? req<StudioConfig>('GET', `/config?studio=${studio}`, undefined, false)
         : req<StudioConfig>('GET', '/config/me'),
     update: (data: Partial<StudioConfig>) => req<void>('PATCH', '/config', data),
+  },
+  client: {
+    register: (email: string, password: string, phone: string) =>
+      req<{ token: string }>('POST', '/client/register', { email, password, phone }, false),
+    login: (email: string, password: string) =>
+      req<{ token: string }>('POST', '/client/login', { email, password }, false),
+    appointments: () =>
+      clientReq<{ appointments: ClientAppointment[] }>('GET', '/client/me/appointments').then(r => r.appointments),
   },
   blocks: {
     list: (start?: string, end?: string) => {
@@ -179,6 +208,8 @@ export interface CreateAppt {
   date: string
   start_time: string
   created_via?: string
+  studio?: string
+  studio_id?: number
 }
 
 export interface ApptCreated {
@@ -214,4 +245,21 @@ export interface TimeBlock {
   end_time:   string
   reason:     string
   created_at: string
+}
+
+export interface ClientAppointment {
+  id:               string
+  date:             string
+  start_time:       string
+  end_time:         string
+  status:           string
+  service_id:       number
+  service_name:     string
+  service_duration: number
+  service_price:    number
+  service_color:    string
+  service_emoji:    string
+  studio_id:        number
+  studio_name:      string
+  studio_slug:      string
 }

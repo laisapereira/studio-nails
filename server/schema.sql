@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS time_blocks (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── client_accounts ──────────────────────────────────────────
+-- Conta global da cliente — vinculada a agendamentos pelo telefone
+CREATE TABLE IF NOT EXISTS client_accounts (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone         TEXT NOT NULL UNIQUE,
+  email         VARCHAR(255) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ── bot_sessions ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bot_sessions (
   phone      VARCHAR(20)  PRIMARY KEY,

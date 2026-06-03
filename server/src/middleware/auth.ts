@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken'
 declare global {
   namespace Express {
     interface Request {
-      admin?: { email: string; role: string; studio_id: number; studio_slug: string }
+      admin?:  { email: string; role: string; studio_id: number; studio_slug: string }
+      clientAccount?: { client_account_id: string; phone: string; role: 'client' }
     }
   }
 }
