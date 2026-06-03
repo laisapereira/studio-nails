@@ -660,19 +660,6 @@ export default function Booking() {
                 }}
                 style={fld}
               />
-              <p
-                style={{
-                  fontSize: 11.5,
-                  color: T.inkSoft,
-                  marginTop: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Icon name="bell" size={14} color={T.accent} /> Enviamos um
-                lembrete 2 dias antes.
-              </p>
             </div>
           </Section>
         )}
@@ -808,7 +795,7 @@ export default function Booking() {
               {booking.date &&
                 `${bDate(booking.date).dow}, ${bDate(booking.date).day} de ${bDate(booking.date).monFull}`}
               <br />
-              às {booking.time}. Lembrete chega 2 dias antes.
+              às {booking.time}.
             </p>
             <div
               style={{
