@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { api, Service, StudioConfig } from "../lib/api";
 import { Icon } from "../components/Icon";
 import { T, serviceTint, serviceIcon } from "../theme/terra";
@@ -92,6 +92,7 @@ function bDate(iso: string) {
 
 export default function Booking() {
   const { slug = "" } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("home");
   const [services, setServices] = useState<Service[]>([]);
   const [config, setConfig] = useState<StudioConfig>({
@@ -413,24 +414,24 @@ export default function Booking() {
               </div>
             </button>
 
-            <a
-              href={`/${slug}/meus-agendamentos`}
+            <button
+              onClick={() => navigate(`/${slug}/meus-agendamentos`)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 16,
                 padding: "18px 20px",
                 background: T.surface, color: T.ink,
                 border: `1.5px solid ${T.line}`, borderRadius: T.radius,
-                cursor: "pointer", fontFamily: T.body, textDecoration: "none",
+                cursor: "pointer", fontFamily: T.body,
               }}
             >
               <div style={{ width: 44, height: 44, borderRadius: 12, background: T.primarySoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="clock" size={22} color={T.primary} sw={1.5} />
               </div>
-              <div>
+              <div style={{ textAlign: "left" }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>Meus agendamentos</div>
                 <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>Veja seus próximos horários</div>
               </div>
-            </a>
+            </button>
           </div>
         )}
 
@@ -840,12 +841,12 @@ export default function Booking() {
                 </div>
               </div>
             </div>
-            <a
-              href={`/${slug}/meus-agendamentos`}
-              style={{ display: "block", marginTop: 22, background: T.primarySoft, color: T.primary, borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", textDecoration: "none" }}
+            <button
+              onClick={() => navigate(`/${slug}/meus-agendamentos`)}
+              style={{ width: "100%", marginTop: 22, background: T.primarySoft, color: T.primary, border: "none", borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", cursor: "pointer", fontFamily: T.body }}
             >
               Ver meus agendamentos →
-            </a>
+            </button>
 
             <button
               onClick={() => {
