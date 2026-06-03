@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, ReactNode, CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api, Appointment, DashStats, TimeBlock, StudioConfig } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { T, serviceTint, serviceIcon } from '../theme/terra'
@@ -44,6 +44,7 @@ function allTimeSlots(): string[] {
 // ── component ────────────────────────────────────────────────────
 export default function Admin() {
   const navigate = useNavigate()
+  const { slug } = useParams<{ slug: string }>()
   const [view, setView]         = useState<'dia' | 'semana'>('dia')
   const [ref, setRef]           = useState(new Date())
   const [selectedDate, setSelDate] = useState(toISO(new Date()))
@@ -83,7 +84,7 @@ export default function Admin() {
       setConfig(cfg)
     } catch {
       localStorage.removeItem('token')
-      navigate('/login')
+      navigate(`/${slug}/login`)
     } finally {
       setLoading(false)
     }
@@ -111,7 +112,7 @@ export default function Admin() {
     }
   }
 
-  function logout() { localStorage.removeItem('token'); navigate('/login') }
+  function logout() { localStorage.removeItem('token'); navigate(`/${slug}/login`) }
 
   async function addBlock(date: string, start_time: string, end_time: string, reason: string) {
     try {
@@ -301,10 +302,10 @@ export default function Admin() {
       {sheet && (
         <Overlay onClose={() => setSheet(null)}>
           {sheet==='detail' && selAppt && <DetailSheet appt={selAppt} onCancel={cancelAppt} cancelling={cancelling} />}
-          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => { setSheet(null); navigate('/') }} />}
+          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => setSheet(null)} />}
           {sheet==='block'  && <BlockSheet defaultDate={selectedDate} config={config} onConfirm={addBlock} />}
           {sheet==='config'   && <ConfigSheet config={config} onSave={async (c) => { await api.config.update(c); setConfig(prev => ({ ...prev, ...c })); setSheet(null); flash('Configurações salvas') }} />}
-          {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate('/admin/services') }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
+          {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate(`/${slug}/admin/services`) }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
           {sheet==='password' && <ChangePasswordSheet onDone={() => { setSheet(null); flash('Senha alterada com sucesso') }} />}
         </Overlay>
       )}

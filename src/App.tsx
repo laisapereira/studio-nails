@@ -1,5 +1,5 @@
-import { useState, useEffect, ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Booking  from './pages/Booking'
 import Admin    from './pages/Admin'
 import Services from './pages/Services'
@@ -8,33 +8,27 @@ import Setup    from './pages/Setup'
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('token')
-  return token ? <>{children}</> : <Navigate to="/login" replace />
+  const { slug } = useParams()
+  return token ? <>{children}</> : <Navigate to={`/${slug}/login`} replace />
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    setAuthed(!!localStorage.getItem('token'))
-  }, [])
-
-  if (authed === null) return null
-
   return (
     <BrowserRouter>
       <Routes>
-        {/* Página pública de agendamento — cada estúdio tem seu próprio slug */}
+        {/* Página pública de agendamento */}
         <Route path="/book/:slug" element={<Booking />} />
 
-        {/* Área admin */}
-        <Route path="/setup" element={authed ? <Navigate to="/admin" replace /> : <Setup onSetup={() => setAuthed(true)} />} />
-        <Route path="/login" element={authed ? <Navigate to="/admin" replace /> : <Login onLogin={() => setAuthed(true)} />} />
-        <Route path="/admin"          element={<PrivateRoute><Admin /></PrivateRoute>} />
-        <Route path="/admin/services" element={<PrivateRoute><Services /></PrivateRoute>} />
+        {/* Setup global — criação de novo estúdio */}
+        <Route path="/setup" element={<Setup />} />
 
-        {/* Raiz redireciona para login */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Área admin — cada estúdio tem seu próprio slug */}
+        <Route path="/:slug/login"          element={<Login />} />
+        <Route path="/:slug/admin"          element={<PrivateRoute><Admin /></PrivateRoute>} />
+        <Route path="/:slug/admin/services" element={<PrivateRoute><Services /></PrivateRoute>} />
+
+        <Route path="/" element={<Navigate to="/setup" replace />} />
+        <Route path="*" element={<Navigate to="/setup" replace />} />
       </Routes>
     </BrowserRouter>
   )

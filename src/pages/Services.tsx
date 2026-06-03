@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api, ServiceRaw } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { T, serviceTint, serviceIcon } from '../theme/terra'
@@ -12,6 +12,7 @@ const EMPTY: Omit<Service, 'id' | 'active' | 'created_at'> = {
 
 export default function Services() {
   const navigate = useNavigate()
+  const { slug } = useParams<{ slug: string }>()
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading]   = useState(true)
   const [sheet, setSheet]       = useState<'edit' | 'new' | null>(null)
@@ -26,7 +27,7 @@ export default function Services() {
       setServices(await api.services.listAll())
     } catch {
       localStorage.removeItem('token')
-      navigate('/login')
+      navigate(`/${slug}/login`)
     } finally {
       setLoading(false)
     }
@@ -94,7 +95,7 @@ export default function Services() {
       {/* Header */}
       <div style={{ background: T.surface, borderBottom: `1px solid ${T.lineSoft}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 20px' }}>
-          <button onClick={() => navigate('/admin')} style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${T.lineSoft}`, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+          <button onClick={() => navigate(`/${slug}/admin`)} style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${T.lineSoft}`, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
             <Icon name="chevronLeft" size={18} color={T.ink} />
           </button>
           <div>

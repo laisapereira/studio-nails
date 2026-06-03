@@ -1,15 +1,12 @@
 import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { Icon } from "../components/Icon";
 import { T } from "../theme/terra";
 
-interface Props {
-  onLogin: () => void;
-}
-
-export default function Login({ onLogin }: Props) {
+export default function Login() {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -23,7 +20,7 @@ export default function Login({ onLogin }: Props) {
     try {
       const { token } = await api.auth.login(email, password);
       localStorage.setItem("token", token);
-      onLogin();
+      navigate(`/${slug}/admin`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Credenciais incorretas");
     } finally {

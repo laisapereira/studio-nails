@@ -4,9 +4,7 @@ import { api } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { T } from '../theme/terra'
 
-interface Props { onSetup: () => void }
-
-export default function Setup({ onSetup }: Props) {
+export default function Setup() {
   const navigate = useNavigate()
   const [studioName, setStudioName] = useState('')
   const [slug, setSlug]             = useState('')
@@ -39,7 +37,7 @@ export default function Setup({ onSetup }: Props) {
     try {
       const { token } = await api.auth.setup(email, password, studioName, slug)
       localStorage.setItem('token', token)
-      onSetup()
+      navigate(`/${slug}/admin`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao criar conta.')
     } finally {
@@ -146,9 +144,9 @@ export default function Setup({ onSetup }: Props) {
           </button>
         </form>
 
-        <button onClick={() => navigate('/login')} style={{ marginTop: 18, width: '100%', background: 'transparent', border: 'none', color: T.inkSoft, fontSize: 13.5, cursor: 'pointer', fontFamily: T.body }}>
-          Já tenho conta → Entrar
-        </button>
+        <p style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: T.inkSoft }}>
+          Já tem conta? Acesse <strong>/{seu-slug}/login</strong>
+        </p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 24, color: T.inkSoft }}>
           <Icon name="shield" size={15} color={T.accent} />
