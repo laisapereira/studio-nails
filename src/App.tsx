@@ -19,7 +19,7 @@ export default function App() {
       <Routes>
         {/* Página pública de agendamento */}
         <Route path="/book/:slug"          element={<Booking />} />
-        <Route path="/meus-agendamentos"   element={<MyAppointments />} />
+        <Route path="/meus-agendamentos" element={<MyAppointments />} />
 
         {/* Setup global — criação de novo estúdio */}
         <Route path="/setup" element={<Setup />} />

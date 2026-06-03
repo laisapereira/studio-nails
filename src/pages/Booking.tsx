@@ -415,7 +415,7 @@ export default function Booking() {
             </button>
 
             <button
-              onClick={() => navigate(`/${slug}/meus-agendamentos`)}
+              onClick={() => navigate(`/meus-agendamentos`)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 16,
                 padding: "18px 20px",
@@ -573,7 +573,7 @@ export default function Booking() {
             kicker="Passo 3 de 5"
             title="Escolha o horário"
             sub={
-              booking.service
+              booking.services.length > 0
                 ? `${durFmt(totalDuration)} · termina no horário mostrado`
                 : undefined
             }
@@ -842,7 +842,7 @@ export default function Booking() {
               </div>
             </div>
             <button
-              onClick={() => navigate(`/${slug}/meus-agendamentos`)}
+              onClick={() => navigate(`/meus-agendamentos`)}
               style={{ width: "100%", marginTop: 22, background: T.primarySoft, color: T.primary, border: "none", borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", cursor: "pointer", fontFamily: T.body }}
             >
               Ver meus agendamentos →
