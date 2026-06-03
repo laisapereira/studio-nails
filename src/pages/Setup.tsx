@@ -144,9 +144,9 @@ export default function Setup() {
           </button>
         </form>
 
-        <p style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: T.inkSoft }}>
-          Já tem conta? Acesse <strong>/seu-slug/login</strong>
-        </p>
+        <button onClick={() => navigate('/login')} style={{ marginTop: 18, width: '100%', background: 'transparent', border: 'none', color: T.inkSoft, fontSize: 13.5, cursor: 'pointer', fontFamily: T.body }}>
+          Já tenho conta → Entrar
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 24, color: T.inkSoft }}>
           <Icon name="shield" size={15} color={T.accent} />

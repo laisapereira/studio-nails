@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Booking  from './pages/Booking'
 import Admin    from './pages/Admin'
 import Services from './pages/Services'
@@ -8,8 +8,7 @@ import Setup    from './pages/Setup'
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('token')
-  const { slug } = useParams()
-  return token ? <>{children}</> : <Navigate to={`/${slug}/login`} replace />
+  return token ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 export default function App() {
@@ -21,9 +20,9 @@ export default function App() {
 
         {/* Setup global — criação de novo estúdio */}
         <Route path="/setup" element={<Setup />} />
+        <Route path="/login" element={<Login />} />
 
         {/* Área admin — cada estúdio tem seu próprio slug */}
-        <Route path="/:slug/login"          element={<Login />} />
         <Route path="/:slug/admin"          element={<PrivateRoute><Admin /></PrivateRoute>} />
         <Route path="/:slug/admin/services" element={<PrivateRoute><Services /></PrivateRoute>} />
 
