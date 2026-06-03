@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, ReactNode, CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, Appointment, DashStats, TimeBlock, StudioConfig } from '../lib/api'
+import { api, Appointment, DashStats, TimeBlock, StudioConfig, ServiceRaw } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { T, serviceTint, serviceIcon } from '../theme/terra'
 
@@ -48,12 +48,13 @@ export default function Admin() {
   const [selectedDate, setSelDate] = useState(toISO(new Date()))
   const [appts, setAppts]       = useState<Appointment[]>([])
   const [blocks, setBlocks]     = useState<TimeBlock[]>([])
+  const [services, setServices] = useState<ServiceRaw[]>([])
   const [config, setConfig]     = useState<StudioConfig>({ studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00' })
   const workStart = timeMin(config.work_start)
   const workEnd   = timeMin(config.work_end)
   const [stats, setStats]       = useState<DashStats | null>(null)
   const [loading, setLoading]   = useState(false)
-  const [sheet, setSheet]       = useState<'detail' | 'add' | 'block' | 'menu' | 'password' | 'config' | null>(null)
+  const [sheet, setSheet]       = useState<'detail' | 'add' | 'block' | 'newappt' | 'menu' | 'password' | 'config' | null>(null)
   const [selAppt, setSelAppt]   = useState<Appointment | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -72,16 +73,18 @@ export default function Admin() {
   const doFetch = useCallback(async () => {
     setLoading(true)
     try {
-      const [data, s, blks, cfg] = await Promise.all([
+      const [data, s, blks, cfg, svcs] = await Promise.all([
         api.appointments.list({ start: weekStart, end: weekEnd, status: 'active' }),
         api.dashboard.stats(weekStart, weekEnd),
         api.blocks.list(weekStart, weekEnd),
         api.config.get(),
+        api.services.listAll(),
       ])
       setAppts(data)
       setStats(s)
       setBlocks(blks)
       setConfig(cfg)
+      setServices(svcs)
     } catch {
       localStorage.removeItem('token')
       navigate(`/${slug}/login`)
@@ -302,7 +305,8 @@ export default function Admin() {
       {sheet && (
         <Overlay onClose={() => setSheet(null)}>
           {sheet==='detail' && selAppt && <DetailSheet appt={selAppt} onCancel={cancelAppt} cancelling={cancelling} />}
-          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => { setSheet(null); navigate(`/book/${slug}`) }} />}
+          {sheet==='add'    && <AddSheet onBlock={() => setSheet('block')} onNew={() => setSheet('newappt')} />}
+          {sheet==='newappt' && <NewApptSheet slug={slug!} services={services} selectedDate={selectedDate} config={config} onConfirm={async () => { await doFetch(); setSheet(null); flash('Agendamento criado!') }} onClose={() => setSheet(null)} />}
           {sheet==='block'  && <BlockSheet defaultDate={selectedDate} config={config} onConfirm={addBlock} />}
           {sheet==='config'   && <ConfigSheet config={config} onSave={async (c) => { await api.config.update(c); setConfig(prev => ({ ...prev, ...c })); setSheet(null); flash('Configurações salvas') }} />}
           {sheet==='menu'     && <MenuSheet onServices={() => { setSheet(null); navigate(`/${slug}/admin/services`) }} onVip={() => { setSheet(null); navigate(`/${slug}/admin/vip`) }} onPassword={() => setSheet('password')} onConfig={() => setSheet('config')} onLogout={() => { setSheet(null); logout() }} />}
@@ -493,8 +497,166 @@ function AddSheet({ onBlock, onNew }: { onBlock: ()=>void; onNew: ()=>void }) {
   return (
     <SheetShell>
       <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 23, color: T.ink, marginBottom: 16 }}>Adicionar</div>
-      {opt('calendar', 'Novo agendamento', 'Abre a página pública de agendamento', onNew, true)}
+      {opt('calendar', 'Novo agendamento', 'Cria um agendamento diretamente pelo painel', onNew, true)}
       {opt('moon', 'Bloquear horário', 'Folga, almoço ou compromisso pessoal', onBlock, false)}
+    </SheetShell>
+  )
+}
+
+// ── NewApptSheet ──────────────────────────────────────────────────
+function NewApptSheet({ slug, services, selectedDate, config, onConfirm, onClose }: {
+  slug: string; services: ServiceRaw[]; selectedDate: string; config: StudioConfig
+  onConfirm: () => Promise<void>; onClose: () => void
+}) {
+  const activeServices = services.filter(s => s.active)
+  const [selIds,  setSelIds]  = useState<number[]>([])
+  const [date,    setDate]    = useState(selectedDate)
+  const [slots,   setSlots]   = useState<string[]>([])
+  const [time,    setTime]    = useState('')
+  const [name,    setName]    = useState('')
+  const [phone,   setPhone]   = useState('')
+  const [loading, setLoading] = useState(false)
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
+
+  const totalDuration = selIds.reduce((sum, id) => {
+    const svc = services.find(s => s.id === id)
+    return sum + (svc?.duration ?? 0)
+  }, 0)
+
+  useEffect(() => {
+    if (selIds.length === 0 || !date) { setSlots([]); setTime(''); return }
+    setSlotsLoading(true)
+    setSlots([]); setTime('')
+    const ids = selIds
+    api.appointments.slots(date, ids.length === 1 ? ids[0] : ids, slug)
+      .then(setSlots)
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false))
+  }, [selIds, date, slug])
+
+  function toggleSvc(id: number) {
+    setSelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setTime('')
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (selIds.length === 0 || !date || !time || !name || !phone) return
+    setLoading(true); setError(null)
+    try {
+      const ids = selIds
+      await api.appointments.create({
+        client_name: name.trim(),
+        phone: phone.replace(/\D/g, ''),
+        ...(ids.length === 1 ? { service_id: ids[0] } : { service_ids: ids }),
+        date,
+        start_time: `${time}:00`,
+        created_via: 'panel',
+        studio: slug,
+      })
+      await onConfirm()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar agendamento.')
+      setLoading(false)
+    }
+  }
+
+  const addMinutes = (t: string, m: number) => {
+    const [h, min] = t.split(':').map(Number)
+    const total = h * 60 + min + m
+    return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`
+  }
+
+  const phoneMaskFn = (v: string) => {
+    const d = v.replace(/\D/g, '')
+    if (d.length <= 2) return `(${d}`
+    if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`
+    if (d.length <= 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+    return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`
+  }
+
+  return (
+    <SheetShell>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
+          <Icon name="arrowLeft" size={22} color={T.inkSoft} sw={2} />
+        </button>
+        <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 22, color: T.ink }}>Novo agendamento</div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {error && <div style={{ background: '#fee2e2', color: '#991b1b', borderRadius: T.radiusSm, padding: '9px 12px', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+        {/* Serviços */}
+        <label style={lblS}>Serviço</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {activeServices.map(svc => {
+            const on = selIds.includes(svc.id)
+            return (
+              <button key={svc.id} type="button" onClick={() => toggleSvc(svc.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                background: on ? T.primarySoft : T.surfaceAlt,
+                border: `1.5px solid ${on ? T.primary : T.line}`,
+                borderRadius: T.radiusSm, cursor: 'pointer', fontFamily: T.body, textAlign: 'left',
+              }}>
+                <span style={{ fontSize: 18 }}>{svc.emoji}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{svc.name}</div>
+                  <div style={{ fontSize: 11.5, color: T.inkSoft }}>{dur(svc.duration)} · {brl(svc.price)}</div>
+                </div>
+                {on && <Icon name="check" size={16} color={T.primary} sw={2.5} />}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Data */}
+        <label style={lblS}>Data</label>
+        <input type="date" value={date} onChange={e => { setDate(e.target.value); setTime('') }}
+          min={toISO(new Date())} style={{ ...fldS, marginBottom: 14 }} required />
+
+        {/* Horário */}
+        <label style={lblS}>Horário</label>
+        {slotsLoading && <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 14 }}>Buscando horários…</div>}
+        {!slotsLoading && slots.length === 0 && selIds.length > 0 && date && (
+          <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 14 }}>Nenhum horário disponível nesse dia.</div>
+        )}
+        {!slotsLoading && slots.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {slots.map(s => (
+              <button key={s} type="button" onClick={() => setTime(s)} style={{
+                padding: '8px 14px', borderRadius: T.radiusSm, cursor: 'pointer', fontFamily: T.body,
+                fontSize: 13, fontWeight: 700,
+                border: `1.5px solid ${time === s ? T.primary : T.line}`,
+                background: time === s ? T.primarySoft : T.surface,
+                color: time === s ? T.primary : T.ink,
+              }}>
+                {s}{totalDuration > 0 && time === s ? ` → ${addMinutes(s, totalDuration)}` : ''}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Cliente */}
+        <label style={lblS}>Nome da cliente</label>
+        <input placeholder="Ex: Ana Lima" value={name} onChange={e => setName(e.target.value)}
+          style={{ ...fldS, marginBottom: 10 }} required />
+
+        <label style={lblS}>WhatsApp</label>
+        <input type="tel" placeholder="(71) 99999-0001" value={phone}
+          onChange={e => setPhone(phoneMaskFn(e.target.value))}
+          style={{ ...fldS, marginBottom: 18 }} required />
+
+        <button type="submit" disabled={loading || selIds.length === 0 || !time} style={{
+          width: '100%', background: T.primary, color: T.primaryInk, border: 'none',
+          borderRadius: T.radius, padding: '14px', fontSize: 15, fontWeight: 700,
+          cursor: (loading || selIds.length === 0 || !time) ? 'default' : 'pointer',
+          opacity: (loading || selIds.length === 0 || !time) ? 0.6 : 1, fontFamily: T.body,
+        }}>
+          {loading ? 'Agendando…' : 'Confirmar agendamento'}
+        </button>
+      </form>
     </SheetShell>
   )
 }
