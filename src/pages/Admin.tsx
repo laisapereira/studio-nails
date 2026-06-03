@@ -595,7 +595,7 @@ function ConfigSheet({ config, onSave }: { config: StudioConfig; onSave: (c: Par
   const [end, setEnd]       = useState(config.work_end)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
-  const times = allTimeSlots(timeMin(config.work_start), timeMin(config.work_end))
+  const times = allTimeSlots(6 * 60, 23 * 60)
 
   const slug    = getSlug()
   const bookUrl = `${window.location.origin}/book/${slug}`
