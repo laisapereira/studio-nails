@@ -280,7 +280,7 @@ export default function Admin() {
         {loading && <div style={{ height: 3, background: `linear-gradient(90deg,${T.primary},${T.accent})`, margin: '4px 16px', borderRadius: 2 }} />}
 
         {view==='dia'
-          ? <DayTimeline appts={selDayAppts} blocks={blocks} today={today} selectedDate={selectedDate} nowMin={nowMin} onTap={a => { setSelAppt(a); setSheet('detail') }} onRemoveBlock={removeBlock} />
+          ? <DayTimeline appts={selDayAppts} blocks={blocks} today={today} selectedDate={selectedDate} nowMin={nowMin} workStart={workStart} workEnd={workEnd} onTap={a => { setSelAppt(a); setSheet('detail') }} onRemoveBlock={removeBlock} />
           : <WeekView weekDates={displayDates} today={today} selectedDate={selectedDate} countByDate={weekCount} maxCount={maxCount} onPickDay={iso => { setSelDate(iso); setView('dia') }} />}
 
         <div style={{ height: 96 }} />
@@ -317,13 +317,14 @@ export default function Admin() {
 interface DayTimelineProps {
   appts: Appointment[]; blocks: TimeBlock[]; today: string
   selectedDate: string; nowMin: number
+  workStart: number; workEnd: number
   onTap: (a: Appointment) => void
   onRemoveBlock: (id: number) => void
 }
 
-function DayTimeline({ appts, blocks, today, selectedDate, nowMin, onTap, onRemoveBlock }: DayTimelineProps) {
+function DayTimeline({ appts, blocks, today, selectedDate, nowMin, workStart, workEnd, onTap, onRemoveBlock }: DayTimelineProps) {
   const total = (workEnd - workStart) * PX_PER_MIN
-  const hours = Array.from({ length: 10 }, (_, i) => 9+i)
+  const hours = Array.from({ length: Math.ceil((workEnd - workStart) / 60) + 1 }, (_, i) => Math.floor(workStart / 60) + i)
 
   return (
     <div style={{ padding: '14px 16px 0' }}>
