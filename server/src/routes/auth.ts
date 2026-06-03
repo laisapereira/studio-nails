@@ -58,12 +58,22 @@ authRouter.post('/setup', async (req, res) => {
     [email.toLowerCase().trim(), password_hash, studio.id]
   )
 
-  // Seed config padrão para o novo estúdio
   await pool.query(
     `INSERT INTO studio_config (studio_id, key, value) VALUES
       ($1, 'work_days',  '1,2,3,4,5'),
       ($1, 'work_start', '09:00'),
       ($1, 'work_end',   '18:00')
+     ON CONFLICT DO NOTHING`,
+    [studio.id]
+  )
+
+  await pool.query(
+    `INSERT INTO services (studio_id, name, duration, price, color, emoji, slug) VALUES
+      ($1, 'Esmaltação Completa', 90,  40.00, '#A0522D', '💅', 'esmaltacao'),
+      ($1, 'Pé Normal',          40,  25.00, '#8B4513', '🦶', 'pe-normal'),
+      ($1, 'Mão Normal',         45,  20.00, '#C4956A', '✋', 'mao-normal'),
+      ($1, 'Banho de Gel',       150, 80.00, '#6B3522', '✨', 'banho-gel'),
+      ($1, 'Alongamento em Gel', 180, 120.00,'#3D1C0C', '💎', 'alongamento')
      ON CONFLICT DO NOTHING`,
     [studio.id]
   )
