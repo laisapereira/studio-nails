@@ -1,4 +1,5 @@
 import { useState, FormEvent } from "react";
+import { useParams } from "react-router-dom";
 import { api, ClientAppointment } from "../lib/api";
 import { Icon } from "../components/Icon";
 import { T } from "../theme/terra";
@@ -23,6 +24,7 @@ function applyPhoneMask(digits: string): string {
 interface Studio { id: number; name: string; slug: string }
 
 export default function MyAppointments() {
+  const { slug } = useParams<{ slug: string }>();
   const [phone,       setPhone]       = useState("");
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState<string | null>(null);
@@ -38,7 +40,9 @@ export default function MyAppointments() {
       const { client_name, appointments } = await api.client.lookup(phone);
       setClientName(client_name);
       setAppts(appointments);
-      if (appointments.length > 0) setSelected(appointments[0].studio_id);
+      // pré-seleciona o estúdio de onde a cliente veio
+      const fromStudio = appointments.find(a => a.studio_slug === slug);
+      setSelected(fromStudio?.studio_id ?? appointments[0]?.studio_id ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Telefone não encontrado.");
     } finally {
@@ -165,23 +169,60 @@ export default function MyAppointments() {
 }
 
 function ApptCard({ appt: a, muted }: { appt: ClientAppointment; muted?: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  const svcs    = a.all_services?.length ? a.all_services : [{ id: a.service_id, name: a.service_name, price: a.service_price, emoji: a.service_emoji, duration: a.service_duration }];
+  const title   = svcs.map(s => s.name).join(" + ");
+  const emojis  = svcs.map(s => s.emoji).join(" ");
+  const total   = svcs.reduce((sum, s) => sum + Number(s.price), 0);
+
   return (
-    <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: T.radius, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14, opacity: muted ? 0.6 : 1 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 12, background: a.service_color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-        {a.service_emoji}
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>{a.service_name}</div>
-        <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>
-          {fmtDate(a.date)} · {a.start_time} → {a.end_time}
+    <div style={{ background: T.surface, border: `1px solid ${open ? T.primary : T.line}`, borderRadius: T.radius, marginBottom: 10, opacity: muted ? 0.65 : 1, overflow: "hidden" }}>
+      {/* Cabeçalho clicável */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", fontFamily: T.body, textAlign: "left" }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: a.service_color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+          {emojis}
         </div>
-        <div style={{ fontSize: 12, color: T.inkSoft }}>{brl(a.service_price)}</div>
-      </div>
-      {a.status === "confirmed" && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "#dcfce7", borderRadius: 6, padding: "3px 8px" }}>confirmado</div>
-      )}
-      {a.status === "completed" && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, background: T.line, borderRadius: 6, padding: "3px 8px" }}>concluído</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>{title}</div>
+          <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>
+            {fmtDate(a.date)} · {a.start_time} → {a.end_time}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+          {a.status === "confirmed" && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "#dcfce7", borderRadius: 6, padding: "3px 8px" }}>confirmado</span>}
+          {a.status === "completed" && <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, background: T.line, borderRadius: 6, padding: "3px 8px" }}>concluído</span>}
+          <span style={{ fontSize: 11, color: T.inkSoft }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {/* Detalhes expandidos */}
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.lineSoft}`, padding: "14px 16px" }}>
+          {svcs.map((s, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginBottom: 8 }}>
+              <span>{s.emoji} {s.name}</span>
+              <span style={{ color: T.inkSoft }}>{brl(Number(s.price))}</span>
+            </div>
+          ))}
+          {svcs.length > 1 && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontWeight: 700, borderTop: `1px solid ${T.lineSoft}`, paddingTop: 8, marginTop: 4 }}>
+              <span>Total</span>
+              <span>{brl(total)}</span>
+            </div>
+          )}
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <a
+              href={`/book/${a.studio_slug}`}
+              style={{ flex: 1, background: T.primarySoft, color: T.primary, border: "none", borderRadius: T.radiusSm, padding: "11px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: T.body, textAlign: "center", textDecoration: "none", display: "block" }}
+            >
+              Remarcar 📅
+            </a>
+          </div>
+        </div>
       )}
     </div>
   );

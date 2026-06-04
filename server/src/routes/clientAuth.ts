@@ -18,7 +18,22 @@ clientAuthRouter.post('/appointments', async (req, res) => {
       s.id    AS service_id,   s.name  AS service_name,
       s.duration AS service_duration, s.price AS service_price,
       s.color AS service_color,       s.emoji AS service_emoji,
-      st.id   AS studio_id,   st.name AS studio_name, st.slug AS studio_slug
+      st.id   AS studio_id,   st.name AS studio_name, st.slug AS studio_slug,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+            'id', sv.id, 'name', sv.name,
+            'price', sv.price, 'emoji', sv.emoji,
+            'duration', sv.duration
+          ) ORDER BY aps.sort_order)
+         FROM appointment_services aps
+         JOIN services sv ON sv.id = aps.service_id
+         WHERE aps.appointment_id = a.id),
+        json_build_array(json_build_object(
+            'id', s.id, 'name', s.name,
+            'price', s.price, 'emoji', s.emoji,
+            'duration', s.duration
+        ))
+      ) AS all_services
     FROM appointments a
     JOIN clients  c  ON c.id  = a.client_id
     JOIN services s  ON s.id  = a.service_id
@@ -45,6 +60,7 @@ clientAuthRouter.post('/appointments', async (req, res) => {
       service_price:    Number(r.service_price),
       service_color:    r.service_color,
       service_emoji:    r.service_emoji,
+      all_services:     r.all_services ?? [],
       studio_id:        r.studio_id,
       studio_name:      r.studio_name,
       studio_slug:      r.studio_slug,

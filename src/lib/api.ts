@@ -262,6 +262,14 @@ export interface VipContact {
   note:  string | null
 }
 
+export interface ClientApptService {
+  id:       number
+  name:     string
+  price:    number
+  emoji:    string
+  duration: number
+}
+
 export interface ClientAppointment {
   id:               string
   date:             string
@@ -277,4 +285,5 @@ export interface ClientAppointment {
   studio_id:        number
   studio_name:      string
   studio_slug:      string
+  all_services:     ClientApptService[]
 }
