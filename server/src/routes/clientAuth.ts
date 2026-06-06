@@ -42,8 +42,9 @@ clientAuthRouter.post('/appointments', async (req, res) => {
     ORDER BY a.date DESC, a.start_time DESC
   `, [rawPhone])
 
+  // Retorna 200 sempre — não confirma se o telefone existe no sistema
   if (rows.length === 0) {
-    res.status(404).json({ error: 'Nenhum agendamento encontrado para esse telefone.' }); return
+    res.json({ client_name: null, appointments: [] }); return
   }
 
   res.json({

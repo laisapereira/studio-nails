@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
+import { pool } from '../db.js'
 
 declare global {
   namespace Express {
@@ -30,6 +31,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
         email: string; role: string; studio_id: number; studio_slug: string
       }
       req.admin = payload
+      // Define contexto RLS para as queries subsequentes nesta sessão de pool
+      pool.query(`SELECT set_config('app.studio_id', $1, FALSE)`, [String(payload.studio_id)]).catch(() => {})
       next(); return
     } catch {
       res.status(401).json({ error: 'Token inválido' }); return

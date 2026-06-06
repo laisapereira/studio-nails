@@ -208,3 +208,31 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- ── Row Level Security (RLS) ──────────────────────────────────
+-- Isola dados por studio_id. A política é permissiva quando
+-- app.studio_id não está definido na sessão (rotas públicas/bot).
+-- Para rotas admin, o middleware define: SET app.studio_id = '<id>'
+
+ALTER TABLE admins           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE studio_config    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE services         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_blocks      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vip_contacts     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointment_services ENABLE ROW LEVEL SECURITY;
+
+-- Política: permite acesso quando não há contexto de estúdio (rotas públicas)
+-- ou quando o studio_id da linha bate com o contexto da sessão
+CREATE POLICY rls_admins        ON admins        USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_studio_config ON studio_config USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_services      ON services      USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_clients       ON clients       USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_appointments  ON appointments  USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_time_blocks   ON time_blocks   USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_vip_contacts  ON vip_contacts  USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
+CREATE POLICY rls_appt_services ON appointment_services USING (
+  current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)=''
+  OR EXISTS (SELECT 1 FROM appointments a WHERE a.id=appointment_id AND (current_setting('app.studio_id',TRUE)='' OR a.studio_id=current_setting('app.studio_id',TRUE)::INT))
+);

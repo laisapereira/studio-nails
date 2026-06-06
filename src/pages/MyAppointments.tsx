@@ -38,13 +38,16 @@ export default function MyAppointments() {
     setError(null);
     try {
       const { client_name, appointments } = await api.client.lookup(phone);
-      setClientName(client_name);
+      if (appointments.length === 0) {
+        setError("Nenhum agendamento encontrado para esse telefone.");
+        return;
+      }
+      setClientName(client_name ?? appointments[0]?.studio_name ?? "Cliente");
       setAppts(appointments);
-      // pré-seleciona o estúdio de onde a cliente veio
       const fromStudio = appointments.find(a => a.studio_slug === slug);
       setSelected(fromStudio?.studio_id ?? appointments[0]?.studio_id ?? null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Telefone não encontrado.");
+      setError(err instanceof Error ? err.message : "Nenhum agendamento encontrado.");
     } finally {
       setLoading(false);
     }
