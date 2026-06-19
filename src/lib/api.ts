@@ -92,6 +92,13 @@ export const api = {
       req<{ days: Record<string, { start: string; end: string }[]> }>(
         'GET', `/slots/week?start=${start}&service_id=${serviceId}&studio=${studio}`, undefined, false
       ).then(r => r.days),
+    availableDates: (start: string, end: string, serviceIds: number | number[], studio: string) => {
+      const param = Array.isArray(serviceIds)
+        ? `service_ids=${serviceIds.join(',')}`
+        : `service_id=${serviceIds}`
+      return req<{ dates: string[] }>('GET', `/slots/available-dates?start=${start}&end=${end}&${param}&studio=${studio}`, undefined, false)
+        .then(r => r.dates)
+    },
     create: (data: CreateAppt) =>
       req<ApptCreated>('POST', '/appointments', data, false),
     cancel: (id: string, reason?: string) =>

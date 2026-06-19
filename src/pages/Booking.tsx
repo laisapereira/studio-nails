@@ -106,6 +106,8 @@ export default function Booking() {
     phone: "",
   });
   const [slots, setSlots] = useState<string[]>([]);
+  const [datesWithSlots, setDatesWithSlots] = useState<string[] | null>(null);
+  const [datesChecking, setDatesChecking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,14 +142,37 @@ export default function Booking() {
   }, [slug]);
 
   useEffect(() => {
+    if (step !== "date" || booking.services.length === 0 || !slug) return;
+    setDatesChecking(true);
+    setDatesWithSlots(null);
+    const today = new Date();
+    const start = today.toISOString().slice(0, 10);
+    const end90 = new Date(today);
+    end90.setDate(today.getDate() + 90);
+    const end = end90.toISOString().slice(0, 10);
+    const ids = booking.services.map(s => s.id);
+    api.appointments
+      .availableDates(start, end, ids.length === 1 ? ids[0] : ids, slug)
+      .then(setDatesWithSlots)
+      .catch(() => setDatesWithSlots(null))
+      .finally(() => setDatesChecking(false));
+  }, [step, booking.services, slug]);
+
+  useEffect(() => {
     if (!booking.date || booking.services.length === 0 || !slug) return;
     setSlotsLoading(true);
     setSlots([]);
     setError(null);
     const ids = booking.services.map(s => s.id);
+    const dateSnap = booking.date;
     api.appointments
-      .slots(booking.date, ids.length === 1 ? ids[0] : ids, slug)
-      .then(setSlots)
+      .slots(dateSnap, ids.length === 1 ? ids[0] : ids, slug)
+      .then(fetched => {
+        setSlots(fetched);
+        if (fetched.length === 0) {
+          setDatesWithSlots(prev => prev ? prev.filter(d => d !== dateSnap) : prev);
+        }
+      })
       .catch(() => setError("Erro ao buscar horários. Tente novamente."))
       .finally(() => setSlotsLoading(false));
   }, [booking.date, booking.services, slug]);
@@ -507,63 +532,78 @@ export default function Booking() {
             title="Qual dia?"
             sub="Segunda a sexta · próximos 30 dias úteis"
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
-                gap: 9,
-                marginTop: 16,
-              }}
-            >
-              {availableDates.map((iso) => {
-                const d = bDate(iso);
-                const on = booking.date === iso;
-                return (
-                  <button
-                    key={iso}
-                    onClick={() => {
-                      set({ date: iso, time: "" });
-                      go("time");
-                    }}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 2,
-                      padding: "12px 4px",
-                      cursor: "pointer",
-                      fontFamily: T.body,
-                      background: on ? T.primary : T.surface,
-                      color: on ? T.primaryInk : T.ink,
-                      border: `1px solid ${on ? T.primary : T.line}`,
-                      borderRadius: T.radiusSm,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        opacity: 0.75,
-                      }}
-                    >
-                      {d.dow}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: T.heading,
-                        fontWeight: T.headingWeight,
-                        fontSize: 22,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {d.day}
-                    </span>
-                    <span style={{ fontSize: 10, opacity: 0.7 }}>{d.mon}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {datesChecking ? (
+              <p style={{ fontSize: 14, color: T.inkSoft, marginTop: 20 }}>
+                Verificando disponibilidade…
+              </p>
+            ) : (() => {
+              const displayDates = datesWithSlots !== null
+                ? availableDates.filter(d => datesWithSlots.includes(d))
+                : availableDates;
+              return displayDates.length === 0 ? (
+                <p style={{ fontSize: 14, color: T.inkSoft, marginTop: 20 }}>
+                  Nenhum horário disponível nos próximos 30 dias. Entre em contato pelo WhatsApp.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 9,
+                    marginTop: 16,
+                  }}
+                >
+                  {displayDates.map((iso) => {
+                    const d = bDate(iso);
+                    const on = booking.date === iso;
+                    return (
+                      <button
+                        key={iso}
+                        onClick={() => {
+                          set({ date: iso, time: "" });
+                          go("time");
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 2,
+                          padding: "12px 4px",
+                          cursor: "pointer",
+                          fontFamily: T.body,
+                          background: on ? T.primary : T.surface,
+                          color: on ? T.primaryInk : T.ink,
+                          border: `1px solid ${on ? T.primary : T.line}`,
+                          borderRadius: T.radiusSm,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            opacity: 0.75,
+                          }}
+                        >
+                          {d.dow}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: T.heading,
+                            fontWeight: T.headingWeight,
+                            fontSize: 22,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {d.day}
+                        </span>
+                        <span style={{ fontSize: 10, opacity: 0.7 }}>{d.mon}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </Section>
         )}
 
