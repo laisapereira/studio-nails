@@ -74,10 +74,16 @@ CREATE TABLE IF NOT EXISTS appointments (
 );
 
 -- ── time_blocks ───────────────────────────────────────────────
+-- Migration (run once on existing DBs):
+--   ALTER TABLE time_blocks RENAME COLUMN date TO start_date;
+--   ALTER TABLE time_blocks ADD COLUMN end_date DATE;
+--   UPDATE time_blocks SET end_date = start_date WHERE end_date IS NULL;
+--   ALTER TABLE time_blocks ALTER COLUMN end_date SET NOT NULL;
 CREATE TABLE IF NOT EXISTS time_blocks (
   id         SERIAL PRIMARY KEY,
   studio_id  INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
-  date       DATE NOT NULL,
+  start_date DATE NOT NULL,
+  end_date   DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time   TIME NOT NULL,
   reason     TEXT NOT NULL DEFAULT 'Bloqueado',
@@ -198,7 +204,8 @@ BEGIN
         AND start_time < v_end AND end_time > v_slot
     ) AND NOT EXISTS (
       SELECT 1 FROM time_blocks
-      WHERE date = p_date AND studio_id = p_studio_id
+      WHERE p_date BETWEEN start_date AND end_date
+        AND studio_id = p_studio_id
         AND start_time < v_end AND end_time > v_slot
     ) THEN
       slot_time := v_slot; RETURN NEXT;

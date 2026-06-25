@@ -137,7 +137,7 @@ export const api = {
       return req<{ blocks: TimeBlock[] }>('GET', `/blocks${q ? '?' + q : ''}`)
         .then(r => r.blocks)
     },
-    create: (data: { date: string; start_time: string; end_time: string; reason: string }) =>
+    create: (data: { start_date: string; end_date: string; start_time: string; end_time: string; reason: string }) =>
       req<TimeBlock>('POST', '/blocks', data),
     remove: (id: number) => req<void>('DELETE', `/blocks/${id}`),
   },
@@ -256,7 +256,8 @@ export interface StudioConfig {
 
 export interface TimeBlock {
   id:         number
-  date:       string
+  start_date: string
+  end_date:   string
   start_time: string
   end_time:   string
   reason:     string

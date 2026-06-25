@@ -117,9 +117,9 @@ export default function Admin() {
 
   function logout() { localStorage.removeItem('token'); navigate(`/${slug}/login`) }
 
-  async function addBlock(date: string, start_time: string, end_time: string, reason: string) {
+  async function addBlock(start_date: string, end_date: string, start_time: string, end_time: string, reason: string) {
     try {
-      const block = await api.blocks.create({ date, start_time, end_time, reason })
+      const block = await api.blocks.create({ start_date, end_date, start_time, end_time, reason })
       setBlocks(prev => [...prev, block])
       setSheet(null)
       flash(`Horário bloqueado · ${reason}`)
@@ -366,7 +366,7 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, workStart, wo
           )
         })}
 
-        {blocks.filter(b => b.date === selectedDate).map(b => {
+        {blocks.filter(b => selectedDate >= b.start_date && selectedDate <= b.end_date).map(b => {
           const startMin = timeMin(b.start_time)
           const endMin   = timeMin(b.end_time)
           const top    = (startMin - workStart) * PX_PER_MIN
@@ -666,17 +666,23 @@ function NewApptSheet({ slug, services, selectedDate, config, onConfirm, onClose
 }
 
 // ── BlockSheet ───────────────────────────────────────────────────
-function BlockSheet({ defaultDate, config, onConfirm }: { defaultDate: string; config: StudioConfig; onConfirm: (date:string, start:string, end:string, reason:string)=>void }) {
+function BlockSheet({ defaultDate, config, onConfirm }: { defaultDate: string; config: StudioConfig; onConfirm: (startDate:string, endDate:string, start:string, end:string, reason:string)=>void }) {
   const presets = [
     { label: 'Almoço',       start: '12:00', end: '13:00' },
     { label: 'Pausa',        start: '15:00', end: '15:30' },
     { label: 'Folga (tarde)',start: '13:00', end: config.work_end },
   ]
-  const [date, setDate]     = useState(defaultDate)
-  const [start, setStart]   = useState('12:00')
-  const [end, setEnd]       = useState('13:00')
-  const [reason, setReason] = useState('Almoço')
+  const [startDate, setStartDate] = useState(defaultDate)
+  const [endDate, setEndDate]     = useState(defaultDate)
+  const [start, setStart]         = useState('12:00')
+  const [end, setEnd]             = useState('13:00')
+  const [reason, setReason]       = useState('Almoço')
   const times = allTimeSlots(timeMin(config.work_start), timeMin(config.work_end))
+
+  function handleStartDate(v: string) {
+    setStartDate(v)
+    if (endDate < v) setEndDate(v)
+  }
 
   return (
     <SheetShell>
@@ -692,28 +698,36 @@ function BlockSheet({ defaultDate, config, onConfirm }: { defaultDate: string; c
         ))}
       </div>
 
-      <label style={lblS}>Data</label>
-      <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fldS, marginBottom: 14 }} />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <label style={lblS}>Data início</label>
+          <input type="date" value={startDate} onChange={e => handleStartDate(e.target.value)} style={fldS} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={lblS}>Data fim</label>
+          <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)} style={fldS} />
+        </div>
+      </div>
 
       <label style={lblS}>Motivo</label>
       <input value={reason} onChange={e => setReason(e.target.value)} style={{ ...fldS, marginBottom: 14 }} />
 
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={lblS}>Início</label>
+          <label style={lblS}>Horário início</label>
           <select value={start} onChange={e => setStart(e.target.value)} style={fldS}>
             {times.map(tm => <option key={tm} value={tm}>{tm}</option>)}
           </select>
         </div>
         <div style={{ flex: 1 }}>
-          <label style={lblS}>Fim</label>
+          <label style={lblS}>Horário fim</label>
           <select value={end} onChange={e => setEnd(e.target.value)} style={fldS}>
             {times.filter(tm => tm > start).map(tm => <option key={tm} value={tm}>{tm}</option>)}
           </select>
         </div>
       </div>
 
-      <button onClick={() => onConfirm(date, start, end, reason)} style={{ marginTop: 22, width: '100%', background: T.primary, color: T.primaryInk, border: 'none', borderRadius: T.radius, padding: '15px', fontWeight: 700, fontSize: 15.5, cursor: 'pointer', fontFamily: T.body }}>
+      <button onClick={() => onConfirm(startDate, endDate, start, end, reason)} style={{ marginTop: 22, width: '100%', background: T.primary, color: T.primaryInk, border: 'none', borderRadius: T.radius, padding: '15px', fontWeight: 700, fontSize: 15.5, cursor: 'pointer', fontFamily: T.body }}>
         Bloquear {start}–{end}
       </button>
     </SheetShell>
