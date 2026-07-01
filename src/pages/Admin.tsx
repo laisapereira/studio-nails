@@ -245,7 +245,7 @@ export default function Admin() {
                 </div>
                 <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hero.client_name}</div>
                 <div style={{ fontSize: 12.5, marginTop: 1, color: current ? 'rgba(255,255,255,0.85)' : T.inkSoft }}>
-                  {hero.service_name} · {hero.start_time.slice(0,5)}–{hero.end_time.slice(0,5)}
+                  {hero.all_service_names} · {hero.start_time.slice(0,5)}–{hero.end_time.slice(0,5)}
                 </div>
               </div>
               <a href={`https://wa.me/${hero.client_phone}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ width: 42, height: 42, borderRadius: 999, flexShrink: 0, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: current ? 'rgba(255,255,255,0.2)' : '#25955420', color: current ? T.primaryInk : '#1f8a4c' }}>
@@ -361,7 +361,7 @@ function DayTimeline({ appts, blocks, today, selectedDate, nowMin, workStart, wo
                 <Icon name={serviceIcon(a.service_id)} size={14} color={c.ink} sw={1.6} />
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.client_name.split(' ')[0]}</span>
               </div>
-              {height > 40 && <span style={{ fontSize: 11.5, color: c.ink, fontWeight: 600 }}>{a.service_name} · {a.start_time.slice(0,5)}–{a.end_time.slice(0,5)}</span>}
+              {height > 40 && <span style={{ fontSize: 11.5, color: c.ink, fontWeight: 600 }}>{a.all_service_names} · {a.start_time.slice(0,5)}–{a.end_time.slice(0,5)}</span>}
             </button>
           )
         })}
@@ -466,7 +466,7 @@ function DetailSheet({ appt: a, onCancel, cancelling }: { appt: Appointment; onC
           <Icon name={serviceIcon(a.service_id)} size={26} sw={1.5} />
         </div>
         <div>
-          <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 22, color: T.ink, lineHeight: 1.1 }}>{a.service_name}</div>
+          <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 22, color: T.ink, lineHeight: 1.1 }}>{a.all_service_names}</div>
           <div style={{ fontSize: 13, color: T.inkSoft, marginTop: 2 }}>{a.start_time.slice(0,5)} – {a.end_time.slice(0,5)} · {dur(a.service_duration)}</div>
         </div>
       </div>

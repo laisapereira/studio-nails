@@ -19,7 +19,14 @@ appointmentsRouter.get('/', requireAuth, async (req, res) => {
       s.id    AS service_id,
       s.name  AS service_name, s.duration AS service_duration,
       s.price AS service_price, s.color AS service_color, s.emoji AS service_emoji,
-      a.created_via, a.notes
+      a.created_via, a.notes,
+      COALESCE(
+        (SELECT string_agg(sv.name, ' + ' ORDER BY aps.sort_order)
+         FROM appointment_services aps
+         JOIN services sv ON sv.id = aps.service_id
+         WHERE aps.appointment_id = a.id),
+        s.name
+      ) AS all_service_names
     FROM appointments a
     JOIN clients  c ON c.id = a.client_id
     JOIN services s ON s.id = a.service_id
@@ -48,13 +55,14 @@ appointmentsRouter.get('/', requireAuth, async (req, res) => {
       status:       r.status,
       client_name:  r.client_name,
       client_phone: r.client_phone,
-      service_name: r.service_name,
-      service_duration: Number(r.service_duration),
-      service_price:    Number(r.service_price),
-      service_color:    r.service_color,
-      service_emoji:    r.service_emoji,
-      created_via:  r.created_via,
-      notes:        r.notes,
+      service_name:      r.service_name,
+      all_service_names: r.all_service_names,
+      service_duration:  Number(r.service_duration),
+      service_price:     Number(r.service_price),
+      service_color:     r.service_color,
+      service_emoji:     r.service_emoji,
+      created_via:       r.created_via,
+      notes:             r.notes,
     })),
   })
 })

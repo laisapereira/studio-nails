@@ -209,7 +209,8 @@ export interface Appointment {
   client_name: string
   client_phone: string
   service_id: number
-  service_name: string
+  service_name:      string
+  all_service_names: string
   service_duration: number
   service_price: number
   service_color: string
