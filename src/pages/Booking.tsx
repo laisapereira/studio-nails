@@ -111,6 +111,9 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rescheduleModal, setRescheduleModal] = useState<{ id: string; date: string; start_time: string; service_name: string } | null>(null);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [checkingExisting, setCheckingExisting] = useState(false);
 
   const set = (patch: Partial<BookingState>) =>
     setBooking((prev) => ({ ...prev, ...patch }));
@@ -191,7 +194,9 @@ export default function Booking() {
         start_time: `${booking.time}:00`,
         created_via: "website",
         studio: slug,
+        ...(rescheduleId ? { reschedule_id: rescheduleId } : {}),
       });
+      setRescheduleId(null);
       setStep("success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
@@ -230,6 +235,31 @@ export default function Booking() {
     setError(null);
     setStep(s);
   };
+
+  async function checkExistingAndProceed() {
+    const rawPhone = toRawPhone(booking.phone);
+    setCheckingExisting(true);
+    try {
+      const appts = await api.appointments.checkExisting(rawPhone, slug);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const in7 = new Date(today);
+      in7.setDate(today.getDate() + 7);
+      const upcoming = appts.filter(a => {
+        const d = new Date(a.date + 'T00:00:00');
+        return d >= today && d <= in7;
+      });
+      if (upcoming.length > 0) {
+        setRescheduleModal(upcoming[0]);
+      } else {
+        go('confirm');
+      }
+    } catch {
+      go('confirm');
+    } finally {
+      setCheckingExisting(false);
+    }
+  }
 
   const fld = {
     width: "100%",
@@ -910,6 +940,60 @@ export default function Booking() {
         )}
       </div>
 
+      {/* Modal de remarcação */}
+      {rescheduleModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          zIndex: 999, padding: '0 0 0 0',
+        }}>
+          <div style={{
+            background: T.surface, borderRadius: `${T.radius} ${T.radius} 0 0`,
+            padding: '28px 20px 40px', maxWidth: 520, width: '100%',
+          }}>
+            <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 22, color: T.ink, marginBottom: 16 }}>
+              Você já tem um agendamento!
+            </div>
+            <div style={{ background: T.bg, borderRadius: T.radiusSm, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>
+                📅 {(() => { const d = bDate(rescheduleModal.date); return `${d.dow}, ${d.day} de ${d.monFull}`; })()}
+              </span>
+              <span style={{ fontSize: 13.5, color: T.inkSoft }}>
+                🕐 {rescheduleModal.start_time.slice(0, 5)}
+              </span>
+              <span style={{ fontSize: 13.5, color: T.inkSoft }}>
+                ✨ {rescheduleModal.service_name}
+              </span>
+            </div>
+            <p style={{ fontSize: 14, color: T.inkSoft, margin: '14px 0 20px', lineHeight: 1.5 }}>
+              Deseja remarcar para o novo horário que você escolheu?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => {
+                  setRescheduleId(rescheduleModal.id);
+                  setRescheduleModal(null);
+                  go('confirm');
+                }}
+                style={{ flex: 1, background: T.primary, color: T.primaryInk, border: 'none', borderRadius: T.radius, padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.body }}
+              >
+                Sim, remarcar
+              </button>
+              <button
+                onClick={() => {
+                  setRescheduleId(null);
+                  setRescheduleModal(null);
+                  go('confirm');
+                }}
+                style={{ flex: 1, background: T.surface, color: T.ink, border: `1.5px solid ${T.line}`, borderRadius: T.radius, padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.body }}
+              >
+                Não, criar novo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sticky CTA */}
       {(step === "info" || step === "confirm") && (
         <div
@@ -930,8 +1014,8 @@ export default function Booking() {
                   booking.phone.replace(/\D/g, "").length >= 10;
                 return (
                   <button
-                    onClick={() => ok && go("confirm")}
-                    disabled={!ok}
+                    onClick={() => ok && !checkingExisting && checkExistingAndProceed()}
+                    disabled={!ok || checkingExisting}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -951,8 +1035,8 @@ export default function Booking() {
                       boxShadow: "0 10px 24px -10px rgba(0,0,0,0.4)",
                     }}
                   >
-                    Continuar{" "}
-                    <Icon name="arrowRight" size={19} color={T.primaryInk} />
+                    {checkingExisting ? "Verificando…" : "Continuar"}{" "}
+                    {!checkingExisting && <Icon name="arrowRight" size={19} color={T.primaryInk} />}
                   </button>
                 );
               })()}

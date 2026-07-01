@@ -1,0 +1,99 @@
+{
+  "name": "Studio Michele — Resumo Semanal (Admin)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 7 * * 1" }]
+        }
+      },
+      "id": "rs1",
+      "name": "Segunda-feira 07h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calcula intervalo da semana atual (seg → sex)\nconst now = new Date();\nconst dow = now.getDay(); // 0=Dom 1=Seg...\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));\nmonday.setHours(0, 0, 0, 0);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nconst toISO = d => d.toISOString().split('T')[0];\nreturn [{ json: { monday: toISO(monday), friday: toISO(friday) } }];"
+      },
+      "id": "rs2",
+      "name": "Calcular semana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/appointments_full?date=gte.' + $json.monday + '&date=lte.' + $json.friday + '&status=neq.cancelled&order=date,start_time&select=*' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "rs3",
+      "name": "Buscar agendamentos da semana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta resumo semanal agrupado por dia\nconst appointments = $input.first().json;\nconst { monday } = $('Calcular semana').first().json;\n\nconst DAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];\n\n// Gera os 5 dias da semana\nconst days = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(monday + 'T12:00:00');\n  d.setDate(d.getDate() + i);\n  days.push(d);\n}\n\nlet msg = '📋 *Sua semana, Michele!*\\n\\n';\nlet total = 0;\nlet revenue = 0;\n\nfor (const day of days) {\n  const iso = day.toISOString().split('T')[0];\n  const dd  = String(day.getDate()).padStart(2,'0');\n  const mm  = String(day.getMonth() + 1).padStart(2,'0');\n  const label = `${DAYS[day.getDay()]}, ${dd}/${mm}`;\n  const appts = (Array.isArray(appointments) ? appointments : []).filter(a => a.date === iso);\n\n  msg += `*${label}*\\n`;\n  if (appts.length === 0) {\n    msg += '_Nenhum agendamento_\\n';\n  } else {\n    for (const a of appts) {\n      msg += `🕐 ${a.start_time.slice(0,5)} ${a.client_name} — ${a.service_name}\\n`;\n      total++;\n      revenue += Number(a.service_price ?? 0);\n    }\n  }\n  msg += '\\n';\n}\n\nconst revenueStr = revenue.toFixed(2).replace('.',',');\nmsg += `📊 *Total: ${total} atendimento${total !== 1 ? 's' : ''} · R$ ${revenueStr}*`;\n\nreturn [{ json: { message: msg } }];"
+      },
+      "id": "rs4",
+      "name": "Montar resumo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.UAZAPI_URL }}/send-text/={{ $env.UAZAPI_INSTANCE }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $env.MICHELE_PHONE, message: $json.message }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "token",        "value": "={{ $env.UAZAPI_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "rs5",
+      "name": "Enviar resumo para Michele",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Segunda-feira 07h": {
+      "main": [[{ "node": "Calcular semana", "type": "main", "index": 0 }]]
+    },
+    "Calcular semana": {
+      "main": [[{ "node": "Buscar agendamentos da semana", "type": "main", "index": 0 }]]
+    },
+    "Buscar agendamentos da semana": {
+      "main": [[{ "node": "Montar resumo", "type": "main", "index": 0 }]]
+    },
+    "Montar resumo": {
+      "main": [[{ "node": "Enviar resumo para Michele", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "id": "resumo-semanal-admin",
+  "meta": {
+    "instanceId": "studio-michele"
+  }
+}

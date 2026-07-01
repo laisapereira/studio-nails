@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAuth } from '../middleware/auth.js'
 import { resolveStudio } from '../utils.js'
+import { notifyMichele } from '../lib/whatsapp.js'
 
 export const appointmentsRouter = Router()
 
@@ -96,7 +97,7 @@ appointmentsRouter.get('/client', async (req, res) => {
 // POST /api/appointments — bot/booking (público)
 // Aceita service_id (único) ou service_ids (array, multi-serviço)
 appointmentsRouter.post('/', async (req, res) => {
-  const { client_name, client_phone, phone, service, service_id, service_ids, date, start_time, created_via, studio, studio_id } = req.body
+  const { client_name, client_phone, phone, service, service_id, service_ids, date, start_time, created_via, studio, studio_id, reschedule_id } = req.body
 
   const rawPhone   = (client_phone ?? phone ?? '').replace(/\D/g, '')
   const clientName = client_name ?? req.body.name
@@ -115,11 +116,12 @@ appointmentsRouter.post('/', async (req, res) => {
   let totalDuration: number
   let primarySvcId: number
   let primarySvcSlug: string
+  let primarySvcName: string
 
   if (service_ids && Array.isArray(service_ids) && service_ids.length > 0) {
     const ids = service_ids.map(Number)
     const { rows: svcs } = await pool.query(
-      'SELECT id, slug, duration FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true ORDER BY id',
+      'SELECT id, slug, name, duration FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true ORDER BY id',
       [ids, studioId]
     )
     if (svcs.length !== ids.length) { res.status(400).json({ error: 'Um ou mais serviços não encontrados.' }); return }
@@ -127,16 +129,18 @@ appointmentsRouter.post('/', async (req, res) => {
     totalDuration  = svcs.reduce((sum: number, s: any) => sum + s.duration, 0)
     primarySvcId   = svcs[0].id
     primarySvcSlug = svcs[0].slug
+    primarySvcName = svcs.map((s: any) => s.name).join(' + ')
   } else {
     let svcRow
-    if (service)    { svcRow = await pool.query('SELECT id, slug, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true', [service, studioId]) }
-    else if (service_id) { svcRow = await pool.query('SELECT id, slug, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true', [service_id, studioId]) }
+    if (service)    { svcRow = await pool.query('SELECT id, slug, name, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true', [service, studioId]) }
+    else if (service_id) { svcRow = await pool.query('SELECT id, slug, name, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true', [service_id, studioId]) }
     else { res.status(400).json({ error: 'Informe service, service_id ou service_ids.' }); return }
     if (!svcRow.rows[0]) { res.status(400).json({ error: 'Serviço não encontrado ou inativo.' }); return }
     svcIds         = [svcRow.rows[0].id]
     totalDuration  = svcRow.rows[0].duration
     primarySvcId   = svcRow.rows[0].id
     primarySvcSlug = svcRow.rows[0].slug
+    primarySvcName = svcRow.rows[0].name
   }
 
   const endTime = addMinutes(start_time, totalDuration)
@@ -166,6 +170,14 @@ appointmentsRouter.post('/', async (req, res) => {
 
     if (rows.length === 0) { await conn.query('ROLLBACK'); res.status(409).json({ error: 'Horário já ocupado.' }); return }
 
+    if (reschedule_id) {
+      await conn.query(
+        `UPDATE appointments SET status = 'cancelled'
+         WHERE id = $1 AND client_id = $2 AND status <> 'cancelled'`,
+        [reschedule_id, clientId]
+      )
+    }
+
     const apptId = rows[0].id
     for (let i = 0; i < svcIds.length; i++) {
       await conn.query(
@@ -175,6 +187,15 @@ appointmentsRouter.post('/', async (req, res) => {
     }
 
     await conn.query('COMMIT')
+
+    notifyMichele('new', {
+      clientName:  clientName.trim(),
+      serviceName: primarySvcName,
+      date,
+      startTime:   start_time.slice(0, 5),
+      endTime,
+    }).catch(err => console.error('[whatsapp] notify new failed:', err))
+
     res.status(201).json({ id: apptId, status: 'confirmed', service: primarySvcSlug, date, start_time: start_time.slice(0,5), end_time: endTime })
   } catch (e) {
     await conn.query('ROLLBACK')
@@ -189,11 +210,23 @@ appointmentsRouter.patch('/:id/cancel', requireAuth, async (req, res) => {
   const { reason } = req.body as { reason?: string }
   const { rows } = await pool.query(
     `UPDATE appointments SET status = 'cancelled', notes = COALESCE($1, notes)
-     WHERE id = $2 AND studio_id = $3 RETURNING id, status`,
+     WHERE id = $2 AND studio_id = $3
+     RETURNING id, status, date::TEXT, start_time::TEXT,
+       (SELECT name FROM clients  WHERE id = client_id)  AS client_name,
+       (SELECT name FROM services WHERE id = service_id) AS service_name`,
     [reason ?? null, req.params.id, req.admin!.studio_id]
   )
   if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado.' }); return }
-  res.json({ id: rows[0].id, status: rows[0].status })
+  const r = rows[0]
+
+  notifyMichele('cancel', {
+    clientName:  r.client_name,
+    serviceName: r.service_name,
+    date:        r.date,
+    startTime:   r.start_time.slice(0, 5),
+  }).catch(err => console.error('[whatsapp] notify cancel failed:', err))
+
+  res.json({ id: r.id, status: r.status })
 })
 
 function addMinutes(time: string, minutes: number): string {

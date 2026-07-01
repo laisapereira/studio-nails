@@ -99,6 +99,10 @@ export const api = {
       return req<{ dates: string[] }>('GET', `/slots/available-dates?start=${start}&end=${end}&${param}&studio=${studio}`, undefined, false)
         .then(r => r.dates)
     },
+    checkExisting: (phone: string, studio: string) =>
+      req<{ appointments: Array<{ id: string; date: string; start_time: string; end_time: string; service_name: string }> }>(
+        'GET', `/appointments/client?phone=${encodeURIComponent(phone)}&studio=${encodeURIComponent(studio)}&status=active`, undefined, false
+      ).then(r => r.appointments),
     create: (data: CreateAppt) =>
       req<ApptCreated>('POST', '/appointments', data, false),
     cancel: (id: string, reason?: string) =>
@@ -226,6 +230,7 @@ export interface CreateAppt {
   created_via?: string
   studio?: string
   studio_id?: number
+  reschedule_id?: string
 }
 
 export interface ApptCreated {
