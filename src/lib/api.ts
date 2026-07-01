@@ -100,7 +100,7 @@ export const api = {
         .then(r => r.dates)
     },
     checkExisting: (phone: string, studio: string) =>
-      req<{ appointments: Array<{ id: string; date: string; start_time: string; end_time: string; service_name: string }> }>(
+      req<{ appointments: Array<{ id: string; date: string; start_time: string; end_time: string; service_name: string; all_service_names: string }> }>(
         'GET', `/appointments/client?phone=${encodeURIComponent(phone)}&studio=${encodeURIComponent(studio)}&status=active`, undefined, false
       ).then(r => r.appointments),
     create: (data: CreateAppt) =>

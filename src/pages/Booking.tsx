@@ -111,7 +111,7 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rescheduleModal, setRescheduleModal] = useState<{ id: string; date: string; start_time: string; service_name: string } | null>(null);
+  const [rescheduleModal, setRescheduleModal] = useState<{ id: string; date: string; start_time: string; service_name: string; all_service_names: string } | null>(null);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(false);
 
@@ -964,7 +964,7 @@ export default function Booking() {
                 🕐 {rescheduleModal.start_time.slice(0, 5)}
               </span>
               <span style={{ fontSize: 13.5, color: T.inkSoft }}>
-                ✨ {rescheduleModal.service_name}
+                ✨ {rescheduleModal.all_service_names}
               </span>
             </div>
             <p style={{ fontSize: 14, color: T.inkSoft, margin: '14px 0 20px', lineHeight: 1.5 }}>

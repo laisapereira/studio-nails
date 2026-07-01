@@ -73,7 +73,14 @@ appointmentsRouter.get('/client', async (req, res) => {
     const rawPhone = phone.replace(/\D/g, '')
     let sql = `
       SELECT a.id, a.date::TEXT, a.start_time::TEXT, a.end_time::TEXT, a.status,
-             s.name AS service_name, s.duration AS service_duration, s.price AS service_price
+             s.name AS service_name, s.duration AS service_duration, s.price AS service_price,
+             COALESCE(
+               (SELECT string_agg(sv.name, ' + ' ORDER BY aps.sort_order)
+                FROM appointment_services aps
+                JOIN services sv ON sv.id = aps.service_id
+                WHERE aps.appointment_id = a.id),
+               s.name
+             ) AS all_service_names
       FROM appointments a
       JOIN clients  c ON c.id = a.client_id
       JOIN services s ON s.id = a.service_id
