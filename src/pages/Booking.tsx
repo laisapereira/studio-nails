@@ -332,15 +332,16 @@ export default function Booking() {
             </button>
           )}
           <div style={{ flex: 1 }}>
-            <img src="/logo-white.png" alt="venhagenda" style={{ height: '3rem', display: 'block' }} />
+            <img src="/logo-white.png" alt="venhagenda" style={{ height: '4rem', display: 'block' }} />
             <div
               style={{
                 fontFamily: T.heading,
                 fontWeight: T.headingWeight,
-                fontSize: '1.1rem',
+                fontSize: '1.4rem',
                 lineHeight: 1,
                 color: T.ink,
-                marginTop: 4,
+                marginTop: 6,
+                textAlign: 'center',
               }}
             >
               {config.studio_name || ''}
@@ -932,7 +933,7 @@ export default function Booking() {
         )}
         {/* Footer */}
         <div style={{ marginTop: 40, paddingBottom: 8, textAlign: 'center' }}>
-          <img src="/logo-beige.png" alt="venhagenda" style={{ height: '3.5rem', marginBottom: 8 }} />
+          <img src="/logo-beige.png" alt="venhagenda" style={{ height: '4.5rem', marginBottom: 8 }} />
           <div style={{ fontSize: 11, color: T.inkSoft }}>
             soluções por{' '}
             <a href="https://instagram.com/aboutlaisa" target="_blank" rel="noreferrer"
