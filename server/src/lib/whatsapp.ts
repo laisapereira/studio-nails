@@ -1,7 +1,7 @@
-const BASE     = process.env.UAZAPI_URL       // ex: https://sua-instancia.uazapi.dev
+const BASE     = process.env.UAZAPI_URL
 const TOKEN    = process.env.UAZAPI_TOKEN
 const INSTANCE = process.env.UAZAPI_INSTANCE
-const PHONE    = process.env.MICHELE_PHONE    // ex: 5571999990001
+const PHONE    = process.env.MICHELE_PHONE
 
 type Event = 'new' | 'cancel'
 
@@ -29,16 +29,30 @@ function buildMessage(event: Event, a: ApptInfo): string {
   return `❌ *Cancelamento*\n👤 ${a.clientName}\n✨ ${a.serviceName}\n🗓️ ${date} às ${a.startTime}`
 }
 
+// normaliza para 5571999990001 (adiciona 55 se vier sem DDI)
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 11) return `55${digits}`
+  if (digits.length === 13) return digits
+  return digits
+}
+
 export async function notifyMichele(event: Event, appt: ApptInfo): Promise<void> {
   if (!BASE || !TOKEN || !INSTANCE || !PHONE) {
     console.warn('[whatsapp] UAZAPI_* não configuradas — notificação ignorada')
     return
   }
-  // Ajuste o path conforme sua versão do UazAPI
-  const res = await fetch(`${BASE}/send-text/${INSTANCE}`, {
+  const res = await fetch(`${BASE}/text`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', token: TOKEN },
-    body:    JSON.stringify({ phone: PHONE, message: buildMessage(event, appt) }),
+    headers: {
+      'Content-Type': 'application/json',
+      token:    TOKEN,
+      instance: INSTANCE,
+    },
+    body: JSON.stringify({
+      phone:   normalizePhone(PHONE),
+      message: buildMessage(event, appt),
+    }),
   })
   if (!res.ok) throw new Error(`UazAPI ${res.status}: ${await res.text()}`)
 }
