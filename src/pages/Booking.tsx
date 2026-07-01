@@ -332,7 +332,7 @@ export default function Booking() {
             </button>
           )}
           <div style={{ flex: 1 }}>
-            <img src="/logo-white.png" alt="venhagenda" style={{ height: 28, display: 'block' }} />
+            <img src="/logo-white.png" alt="venhagenda" style={{ height: 44, display: 'block' }} />
             <div
               style={{
                 fontSize: 9.5,
@@ -932,7 +932,7 @@ export default function Booking() {
         )}
         {/* Footer */}
         <div style={{ marginTop: 40, paddingBottom: 8, textAlign: 'center' }}>
-          <img src="/logo-beige.png" alt="venhagenda" style={{ height: 22, opacity: 0.7, marginBottom: 8 }} />
+          <img src="/logo-beige.png" alt="venhagenda" style={{ height: 40, marginBottom: 8 }} />
           <div style={{ fontSize: 11, color: T.inkSoft }}>
             soluções por{' '}
             <a href="https://instagram.com/aboutlaisa" target="_blank" rel="noreferrer"
