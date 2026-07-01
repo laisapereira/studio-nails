@@ -243,18 +243,20 @@ export default function Booking() {
       const appts = await api.appointments.checkExisting(rawPhone, slug);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const in7 = new Date(today);
-      in7.setDate(today.getDate() + 7);
+      // compara com a data escolhida, não com hoje
+      const newDate = new Date(booking.date + 'T00:00:00');
       const upcoming = appts.filter(a => {
         const d = new Date(a.date + 'T00:00:00');
-        return d >= today && d <= in7;
+        const diffDays = Math.abs((d.getTime() - newDate.getTime()) / 86400000);
+        return d >= today && diffDays <= 7;
       });
       if (upcoming.length > 0) {
         setRescheduleModal(upcoming[0]);
       } else {
         go('confirm');
       }
-    } catch {
+    } catch (err) {
+      console.error('[checkExisting] falhou, seguindo sem popup:', err);
       go('confirm');
     } finally {
       setCheckingExisting(false);
