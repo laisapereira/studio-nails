@@ -332,28 +332,18 @@ export default function Booking() {
             </button>
           )}
           <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontFamily: T.heading,
-                fontWeight: T.headingWeight,
-                fontSize: 20,
-                lineHeight: 1,
-                color: T.ink,
-              }}
-            >
-              {config.studio_name || '…'}
-            </div>
+            <img src="/logo-white.png" alt="venhagenda" style={{ height: 28, display: 'block' }} />
             <div
               style={{
                 fontSize: 9.5,
-                letterSpacing: 3,
+                letterSpacing: 2,
                 textTransform: "uppercase",
-                color: T.accent,
-                marginTop: 3,
+                color: T.inkSoft,
+                marginTop: 4,
                 fontWeight: 600,
               }}
             >
-              Agendamento online
+              {config.studio_name || ''}
             </div>
           </div>
           <div
@@ -940,6 +930,17 @@ export default function Booking() {
             </button>
           </div>
         )}
+        {/* Footer */}
+        <div style={{ marginTop: 40, paddingBottom: 8, textAlign: 'center' }}>
+          <img src="/logo-beige.png" alt="venhagenda" style={{ height: 22, opacity: 0.7, marginBottom: 8 }} />
+          <div style={{ fontSize: 11, color: T.inkSoft }}>
+            soluções por{' '}
+            <a href="https://instagram.com/aboutlaisa" target="_blank" rel="noreferrer"
+              style={{ color: T.accent, fontWeight: 700, textDecoration: 'none' }}>
+              @aboutlaisa
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Modal de remarcação */}
