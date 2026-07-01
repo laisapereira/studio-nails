@@ -20,6 +20,8 @@ if (!process.env.JWT_SECRET) {
 
 const app = express()
 
+app.set('trust proxy', 1)
+
 // ── CORS — apenas origens permitidas ─────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())

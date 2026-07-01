@@ -42,12 +42,11 @@ export async function notifyMichele(event: Event, appt: ApptInfo): Promise<void>
     console.warn('[whatsapp] UAZAPI_* não configuradas — notificação ignorada')
     return
   }
-  const res = await fetch(`${BASE}/text`, {
+  const res = await fetch(`${BASE}/${INSTANCE}/text`, {
     method:  'POST',
     headers: {
       'Content-Type': 'application/json',
-      token:    TOKEN,
-      instance: INSTANCE,
+      token: TOKEN,
     },
     body: JSON.stringify({
       phone:   normalizePhone(PHONE),
