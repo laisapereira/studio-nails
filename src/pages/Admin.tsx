@@ -177,8 +177,8 @@ export default function Admin() {
       <div style={{ background: T.surface, borderBottom: `1px solid ${T.lineSoft}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px 8px' }}>
           <div>
-            <img src="/logo-white.png" alt="venhagenda" style={{ height: 40, display: 'block' }} />
-            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: T.inkSoft, marginTop: 4, fontWeight: 600 }}>{config.studio_name || ''}</div>
+            <img src="/logo-white.png" alt="venhagenda" style={{ height: '3rem', display: 'block' }} />
+            <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: '1rem', color: T.ink, marginTop: 4, lineHeight: 1 }}>{config.studio_name || ''}</div>
           </div>
           <button style={iconBtnS()} onClick={() => setSheet('menu')}>
             <Icon name="list" size={20} color={T.inkSoft} />
