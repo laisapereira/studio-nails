@@ -42,15 +42,16 @@ export async function notifyMichele(event: Event, appt: ApptInfo): Promise<void>
     console.warn('[whatsapp] UAZAPI_* não configuradas — notificação ignorada')
     return
   }
-  const res = await fetch(`${BASE}/${INSTANCE}/text`, {
+  const res = await fetch(`${BASE}/send/text`, {
     method:  'POST',
     headers: {
       'Content-Type': 'application/json',
-      token: TOKEN,
+      token:    TOKEN,
+      instance: INSTANCE,
     },
     body: JSON.stringify({
-      phone:   normalizePhone(PHONE),
-      message: buildMessage(event, appt),
+      number: normalizePhone(PHONE),
+      text:   buildMessage(event, appt),
     }),
   })
   if (!res.ok) throw new Error(`UazAPI ${res.status}: ${await res.text()}`)
