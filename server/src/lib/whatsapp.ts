@@ -2,6 +2,7 @@ const BASE     = process.env.UAZAPI_URL
 const TOKEN    = process.env.UAZAPI_TOKEN
 const INSTANCE = process.env.UAZAPI_INSTANCE
 const PHONE    = process.env.MICHELE_PHONE
+const SITE_URL = process.env.SITE_URL
 
 type Event = 'new' | 'cancel'
 
@@ -34,14 +35,15 @@ function formatPrice(value: number): string {
 }
 
 function buildMessage(event: Event, a: ApptInfo): string {
-  const date  = formatDate(a.date)
-  const phone = formatPhone(a.clientPhone)
-  const price = formatPrice(a.totalPrice)
+  const date   = formatDate(a.date)
+  const phone  = formatPhone(a.clientPhone)
+  const price  = formatPrice(a.totalPrice)
+  const agenda = SITE_URL ? `\n👉 ${SITE_URL}` : ''
   if (event === 'new') {
     const range = a.endTime ? ` → ${a.endTime}` : ''
-    return `📅 *Novo agendamento!*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🕐 ${date} às ${a.startTime}${range}`
+    return `📅 *Novo agendamento!*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🕐 ${date} às ${a.startTime}${range}${agenda}`
   }
-  return `❌ *Cancelamento*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🗓️ ${date} às ${a.startTime}`
+  return `❌ *Cancelamento*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🗓️ ${date} às ${a.startTime}${agenda}`
 }
 
 // normaliza para 5571999990001 (adiciona 55 se vier sem DDI)
