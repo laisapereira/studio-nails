@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import { pool } from '../db.js'
-import { sendText } from './whatsapp.js'
+import { sendText, notifyClient } from './whatsapp.js'
 
 const TZ            = 'America/Sao_Paulo'
 const SITE_BASE_URL = process.env.SITE_BASE_URL
@@ -112,9 +112,67 @@ async function sendEvening() {
   }
 }
 
+async function sendClientReminders() {
+  const d = new Date()
+  d.setDate(d.getDate() + 2)
+  const targetDate = d.toLocaleDateString('sv-SE', { timeZone: TZ })
+
+  const { rows: studios } = await pool.query(`
+    SELECT s.id, s.name, s.slug,
+           MAX(CASE WHEN sc.key = 'notification_phone' THEN sc.value END) AS contact_phone
+    FROM studios s
+    LEFT JOIN studio_config sc ON sc.studio_id = s.id
+    GROUP BY s.id, s.name, s.slug
+  `)
+
+  for (const studio of studios) {
+    try {
+      const { rows } = await pool.query(`
+        SELECT a.id, a.date::TEXT, a.start_time::TEXT, a.end_time::TEXT,
+               c.name AS client_name, c.phone AS client_phone,
+               COALESCE(
+                 (SELECT string_agg(sv.name, ' + ' ORDER BY aps.sort_order)
+                  FROM appointment_services aps
+                  JOIN services sv ON sv.id = aps.service_id
+                  WHERE aps.appointment_id = a.id),
+                 s.name
+               ) AS all_service_names,
+               COALESCE(
+                 (SELECT SUM(sv.price::numeric)
+                  FROM appointment_services aps
+                  JOIN services sv ON sv.id = aps.service_id
+                  WHERE aps.appointment_id = a.id),
+                 s.price
+               ) AS total_price
+        FROM appointments a
+        JOIN clients c ON c.id = a.client_id
+        JOIN services s ON s.id = a.service_id
+        WHERE a.studio_id = $1 AND a.date = $2 AND a.status = 'confirmed'
+        ORDER BY a.start_time
+      `, [studio.id, targetDate])
+
+      for (const appt of rows) {
+        await notifyClient('reminder', {
+          clientName:  appt.client_name,
+          clientPhone: appt.client_phone,
+          serviceName: appt.all_service_names,
+          totalPrice:  Number(appt.total_price),
+          date:        appt.date,
+          startTime:   appt.start_time.slice(0, 5),
+          endTime:     appt.end_time.slice(0, 5),
+        }, appt.client_phone, studio.name, studio.contact_phone, studio.slug)
+          .catch(err => console.error(`[clientReminder] appt ${appt.id}:`, err))
+      }
+    } catch (err) {
+      console.error(`[clientReminder] studio ${studio.slug}:`, err)
+    }
+  }
+}
+
 export function startScheduledNotifs() {
-  cron.schedule('0 7 * * 1-5',  sendMorning, { timezone: TZ })
-  cron.schedule('0 10 * * 1-5', sendMidday,  { timezone: TZ })
-  cron.schedule('30 17 * * 1-5', sendEvening, { timezone: TZ })
-  console.log('[scheduledNotifs] Crons registrados (07:00, 10:00, 17:30 BRT, seg-sex)')
+  cron.schedule('0 7 * * 1-5',  sendMorning,        { timezone: TZ })
+  cron.schedule('0 10 * * 1-5', sendMidday,          { timezone: TZ })
+  cron.schedule('30 17 * * 1-5', sendEvening,        { timezone: TZ })
+  cron.schedule('0 8 * * *',     sendClientReminders, { timezone: TZ })
+  console.log('[scheduledNotifs] Crons registrados (07:00, 10:00, 17:30 admin + 08:00 lembrete clientes BRT)')
 }

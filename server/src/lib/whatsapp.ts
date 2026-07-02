@@ -3,7 +3,8 @@ const TOKEN        = process.env.UAZAPI_TOKEN
 const INSTANCE     = process.env.UAZAPI_INSTANCE
 const SITE_BASE_URL = process.env.SITE_BASE_URL  // ex: https://venhagenda.com.br
 
-type ApptEvent = 'new' | 'reschedule' | 'cancel' | 'client_cancel'
+type ApptEvent   = 'new' | 'reschedule' | 'cancel' | 'client_cancel'
+export type ClientEvent = 'confirmed' | 'rescheduled' | 'reminder' | 'client_cancelled'
 
 export interface ApptInfo {
   clientName:   string
@@ -79,6 +80,41 @@ export async function notifyAppt(
     text = `❌ *Cancelamento pela cliente*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
   } else {
     text = `❌ *Cancelamento*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
+  }
+
+  await sendText(toPhone, text)
+}
+
+export async function notifyClient(
+  event: ClientEvent,
+  appt: ApptInfo,
+  toPhone: string,
+  studioName: string,
+  contactPhone?: string | null,
+  studioSlug?: string,
+): Promise<void> {
+  const date    = formatDate(appt.date)
+  const price   = formatPrice(appt.totalPrice)
+  const range   = appt.endTime ? ` → ${appt.endTime}` : ''
+  const contact = contactPhone
+    ? `\n\nSe tiver dúvidas, fala com a gente pelo ${formatPhone(contactPhone)} 💅`
+    : '\n\nQualquer dúvida é só responder essa mensagem 💅'
+  const bookLink = (SITE_BASE_URL && studioSlug)
+    ? `\n📲 ${SITE_BASE_URL}/book/${studioSlug}`
+    : ''
+
+  let text: string
+  if (event === 'confirmed') {
+    text = `Oi! 👋 Aqui é a assistente de agenda da *${studioName}*.\n\nSeu agendamento foi confirmado!\n✨ ${appt.serviceName}\n📅 ${date} às ${appt.startTime}${range}\n💰 ${price}${contact}`
+  } else if (event === 'rescheduled') {
+    const oldLine = (appt.oldDate && appt.oldStartTime)
+      ? `\n🕐 Antes: ${formatDate(appt.oldDate)} às ${appt.oldStartTime}`
+      : ''
+    text = `Oi! 👋 Aqui é a assistente de agenda da *${studioName}*.\n\nSua remarcação foi confirmada!${oldLine}\n📅 Agora: ${date} às ${appt.startTime}${range}\n✨ ${appt.serviceName}\n💰 ${price}${contact}`
+  } else if (event === 'reminder') {
+    text = `Oi! 🌸 Aqui é a assistente de agenda da *${studioName}*.\n\nLembrando do seu agendamento que está se aproximando:\n✨ ${appt.serviceName}\n📅 ${date} às ${appt.startTime}${range}\n💰 ${price}${contact}`
+  } else {
+    text = `Oi! Aqui é a assistente de agenda da *${studioName}*.\n\nSeu cancelamento foi confirmado.\n✨ ${appt.serviceName}\n📅 ${date} às ${appt.startTime}\n\nPara reagendar quando quiser:${bookLink} 💅`
   }
 
   await sendText(toPhone, text)

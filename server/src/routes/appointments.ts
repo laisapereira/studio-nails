@@ -2,18 +2,18 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAuth } from '../middleware/auth.js'
 import { resolveStudio } from '../utils.js'
-import { notifyAppt } from '../lib/whatsapp.js'
+import { notifyAppt, notifyClient } from '../lib/whatsapp.js'
 
 export const appointmentsRouter = Router()
 
-async function studioMeta(studioId: number): Promise<{ slug: string; notifPhone: string | null }> {
+async function studioMeta(studioId: number): Promise<{ slug: string; notifPhone: string | null; studioName: string }> {
   const { rows } = await pool.query(`
-    SELECT s.slug, sc.value AS notif_phone
+    SELECT s.slug, s.name AS studio_name, sc.value AS notif_phone
     FROM studios s
     LEFT JOIN studio_config sc ON sc.studio_id = s.id AND sc.key = 'notification_phone'
     WHERE s.id = $1
   `, [studioId])
-  return { slug: rows[0]?.slug ?? '', notifPhone: rows[0]?.notif_phone ?? null }
+  return { slug: rows[0]?.slug ?? '', notifPhone: rows[0]?.notif_phone ?? null, studioName: rows[0]?.studio_name ?? '' }
 }
 
 // GET /api/appointments — admin, scoped to studio
@@ -223,18 +223,23 @@ appointmentsRouter.post('/', async (req, res) => {
 
     await conn.query('COMMIT')
 
-    studioMeta(studioId).then(({ slug, notifPhone }) => {
-      if (!notifPhone) return
-      notifyAppt(reschedule_id ? 'reschedule' : 'new', {
-        clientName:   clientName.trim(),
-        clientPhone:  rawPhone,
-        serviceName:  primarySvcName,
+    studioMeta(studioId).then(({ slug, notifPhone, studioName }) => {
+      const apptData = {
+        clientName:  clientName.trim(),
+        clientPhone: rawPhone,
+        serviceName: primarySvcName,
         totalPrice,
         date,
-        startTime:    start_time.slice(0, 5),
+        startTime:   start_time.slice(0, 5),
         endTime,
         ...(reschedule_id && oldDate ? { oldDate, oldStartTime: oldStartTime ?? undefined } : {}),
-      }, notifPhone, slug).catch(err => console.error('[whatsapp] notify new failed:', err))
+      }
+      if (notifPhone) {
+        notifyAppt(reschedule_id ? 'reschedule' : 'new', apptData, notifPhone, slug)
+          .catch(err => console.error('[whatsapp] notify admin failed:', err))
+      }
+      notifyClient(reschedule_id ? 'rescheduled' : 'confirmed', apptData, rawPhone, studioName, notifPhone, slug)
+        .catch(err => console.error('[whatsapp] notify client failed:', err))
     }).catch(() => {})
 
     res.status(201).json({ id: apptId, status: 'confirmed', service: primarySvcSlug, date, start_time: start_time.slice(0,5), end_time: endTime })
@@ -304,16 +309,21 @@ appointmentsRouter.patch('/:id/client-cancel', async (req, res) => {
   if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado ou telefone inválido.' }); return }
 
   const r = rows[0]
-  studioMeta(r.studio_id).then(({ slug, notifPhone }) => {
-    if (!notifPhone) return
-    notifyAppt('client_cancel', {
+  studioMeta(r.studio_id).then(({ slug, notifPhone, studioName }) => {
+    const apptData = {
       clientName:  r.client_name,
       clientPhone: r.client_phone,
       serviceName: r.service_name,
       totalPrice:  Number(r.service_price),
       date:        r.date,
       startTime:   r.start_time.slice(0, 5),
-    }, notifPhone, slug).catch(err => console.error('[whatsapp] notify client_cancel failed:', err))
+    }
+    if (notifPhone) {
+      notifyAppt('client_cancel', apptData, notifPhone, slug)
+        .catch(err => console.error('[whatsapp] notify admin client_cancel failed:', err))
+    }
+    notifyClient('client_cancelled', apptData, r.client_phone, studioName, notifPhone, slug)
+      .catch(err => console.error('[whatsapp] notify client cancel confirm failed:', err))
   }).catch(() => {})
 
   res.json({ id: r.id, status: 'cancelled' })
