@@ -38,7 +38,7 @@ clientAuthRouter.post('/appointments', async (req, res) => {
     JOIN clients  c  ON c.id  = a.client_id
     JOIN services s  ON s.id  = a.service_id
     JOIN studios  st ON st.id = a.studio_id
-    WHERE c.phone = $1 AND a.status <> 'cancelled'
+    WHERE c.phone = $1
     ORDER BY a.date DESC, a.start_time DESC
   `, [rawPhone])
 

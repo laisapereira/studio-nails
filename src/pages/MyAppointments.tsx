@@ -73,10 +73,11 @@ export default function MyAppointments() {
     return acc;
   }, []);
 
-  const today    = new Date().toISOString().slice(0, 10);
-  const filtered = appts.filter(a => a.studio_id === selected);
-  const upcoming = [...filtered.filter(a => a.date >= today)].reverse();
-  const past     = filtered.filter(a => a.date < today);
+  const today     = new Date().toISOString().slice(0, 10);
+  const filtered  = appts.filter(a => a.studio_id === selected);
+  const upcoming  = filtered.filter(a => a.date >= today && a.status !== 'cancelled').reverse();
+  const past      = filtered.filter(a => a.date < today  && a.status !== 'cancelled');
+  const cancelled = filtered.filter(a => a.status === 'cancelled');
 
   const fld = {
     width: "100%", boxSizing: "border-box" as const,
@@ -182,6 +183,13 @@ export default function MyAppointments() {
               </>
             )}
 
+            {cancelled.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#c2453b", textTransform: "uppercase", letterSpacing: 1, margin: "22px 0 10px" }}>Cancelados</div>
+                {cancelled.map(a => <ApptCard key={a.id} appt={a} muted cancelled />)}
+              </>
+            )}
+
             <button onClick={() => { setClientName(null); setAppts([]); setPhone(""); }} style={{ marginTop: 24, width: "100%", background: "transparent", border: "none", color: T.inkSoft, fontSize: 13.5, cursor: "pointer", fontFamily: T.body }}>
               Buscar outro número
             </button>
@@ -192,8 +200,8 @@ export default function MyAppointments() {
   );
 }
 
-function ApptCard({ appt: a, muted, onCancel, cancelling }: {
-  appt: ClientAppointment; muted?: boolean
+function ApptCard({ appt: a, muted, cancelled: isCancelled, onCancel, cancelling }: {
+  appt: ClientAppointment; muted?: boolean; cancelled?: boolean
   onCancel?: () => void; cancelling?: boolean
 }) {
   const [open, setOpen] = useState(false);
@@ -220,8 +228,9 @@ function ApptCard({ appt: a, muted, onCancel, cancelling }: {
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-          {a.status === "confirmed" && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "#dcfce7", borderRadius: 6, padding: "3px 8px" }}>confirmado</span>}
-          {a.status === "completed" && <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, background: T.line, borderRadius: 6, padding: "3px 8px" }}>concluído</span>}
+          {a.status === "confirmed"  && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "#dcfce7", borderRadius: 6, padding: "3px 8px" }}>confirmado</span>}
+          {a.status === "completed"  && <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, background: T.line, borderRadius: 6, padding: "3px 8px" }}>concluído</span>}
+          {isCancelled               && <span style={{ fontSize: 11, fontWeight: 700, color: "#c2453b", background: "#fee2e2", borderRadius: 6, padding: "3px 8px" }}>cancelado</span>}
           <span style={{ fontSize: 11, color: T.inkSoft }}>{open ? "▲" : "▼"}</span>
         </div>
       </button>
