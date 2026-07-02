@@ -274,17 +274,13 @@ appointmentsRouter.patch('/:id/client-cancel', async (req, res) => {
   const { phone } = req.body as { phone?: string }
   if (!phone) { res.status(400).json({ error: 'Telefone obrigatório.' }); return }
 
-  const rawPhone = phone.replace(/\D/g, '')
-  // aceita com ou sem DDI (55): compara os últimos 11 dígitos
+  const digits   = phone.replace(/\D/g, '')
+  const rawPhone = digits.length === 11 ? `55${digits}` : digits
   const { rows } = await pool.query(
     `UPDATE appointments SET status = 'cancelled'
      WHERE id = $1
        AND status <> 'cancelled'
-       AND client_id = (
-         SELECT id FROM clients
-         WHERE RIGHT(phone, 11) = RIGHT($2, 11)
-         LIMIT 1
-       )
+       AND client_id = (SELECT id FROM clients WHERE phone = $2 LIMIT 1)
      RETURNING id, studio_id, date::TEXT, start_time::TEXT,
        (SELECT name  FROM clients  WHERE id = client_id) AS client_name,
        (SELECT phone FROM clients  WHERE id = client_id) AS client_phone,
