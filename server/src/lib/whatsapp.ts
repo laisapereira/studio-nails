@@ -6,13 +6,15 @@ const SITE_BASE_URL = process.env.SITE_BASE_URL  // ex: https://venhagenda.com.b
 type ApptEvent = 'new' | 'reschedule' | 'cancel' | 'client_cancel'
 
 export interface ApptInfo {
-  clientName:  string
-  clientPhone: string
-  serviceName: string
-  totalPrice:  number
-  date:        string   // YYYY-MM-DD
-  startTime:   string   // HH:MM
-  endTime?:    string
+  clientName:   string
+  clientPhone:  string
+  serviceName:  string
+  totalPrice:   number
+  date:         string   // YYYY-MM-DD
+  startTime:    string   // HH:MM
+  endTime?:     string
+  oldDate?:     string   // só para evento reschedule
+  oldStartTime?: string
 }
 
 function formatDate(iso: string): string {
@@ -68,8 +70,11 @@ export async function notifyAppt(
     const range = appt.endTime ? ` → ${appt.endTime}` : ''
     text = `📅 *Novo agendamento!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🕐 ${date} às ${appt.startTime}${range}${link}`
   } else if (event === 'reschedule') {
-    const range = appt.endTime ? ` → ${appt.endTime}` : ''
-    text = `🔄 *Remarcação!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🕐 ${date} às ${appt.startTime}${range}${link}`
+    const range   = appt.endTime ? ` → ${appt.endTime}` : ''
+    const oldLine = (appt.oldDate && appt.oldStartTime)
+      ? `\n🕐 Antes: ${formatDate(appt.oldDate)} às ${appt.oldStartTime}`
+      : ''
+    text = `🔄 *Remarcação!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}${oldLine}\n🕐 Agora: ${date} às ${appt.startTime}${range}${link}`
   } else if (event === 'client_cancel') {
     text = `❌ *Cancelamento pela cliente*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
   } else {

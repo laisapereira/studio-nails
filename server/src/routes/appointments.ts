@@ -198,12 +198,19 @@ appointmentsRouter.post('/', async (req, res) => {
 
     if (rows.length === 0) { await conn.query('ROLLBACK'); res.status(409).json({ error: 'Horário já ocupado.' }); return }
 
+    let oldDate: string | null = null
+    let oldStartTime: string | null = null
     if (reschedule_id) {
-      await conn.query(
+      const { rows: oldRows } = await conn.query(
         `UPDATE appointments SET status = 'cancelled'
-         WHERE id = $1 AND client_id = $2 AND status <> 'cancelled'`,
+         WHERE id = $1 AND client_id = $2 AND status <> 'cancelled'
+         RETURNING date::TEXT, start_time::TEXT`,
         [reschedule_id, clientId]
       )
+      if (oldRows[0]) {
+        oldDate      = oldRows[0].date
+        oldStartTime = oldRows[0].start_time.slice(0, 5)
+      }
     }
 
     const apptId = rows[0].id
@@ -219,13 +226,14 @@ appointmentsRouter.post('/', async (req, res) => {
     studioMeta(studioId).then(({ slug, notifPhone }) => {
       if (!notifPhone) return
       notifyAppt(reschedule_id ? 'reschedule' : 'new', {
-        clientName:  clientName.trim(),
-        clientPhone: rawPhone,
-        serviceName: primarySvcName,
+        clientName:   clientName.trim(),
+        clientPhone:  rawPhone,
+        serviceName:  primarySvcName,
         totalPrice,
         date,
-        startTime:   start_time.slice(0, 5),
+        startTime:    start_time.slice(0, 5),
         endTime,
+        ...(reschedule_id && oldDate ? { oldDate, oldStartTime: oldStartTime ?? undefined } : {}),
       }, notifPhone, slug).catch(err => console.error('[whatsapp] notify new failed:', err))
     }).catch(() => {})
 
