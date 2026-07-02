@@ -277,30 +277,21 @@ appointmentsRouter.patch('/:id/client-cancel', async (req, res) => {
   const digits   = phone.replace(/\D/g, '')
   const rawPhone = digits.length === 11 ? `55${digits}` : digits
 
-  // debug — aparece nos logs do Railway
-  console.log('[client-cancel] appt:', req.params.id, '| phone recebido:', digits, '| normalizado:', rawPhone)
-
   const { rows } = await pool.query(
-    `UPDATE appointments SET status = 'cancelled'
-     WHERE id = $1
-       AND status <> 'cancelled'
-       AND client_id = (
-         SELECT id FROM clients
-         WHERE phone = $2
-            OR phone = RIGHT($2, 11)
-            OR phone = '55' || RIGHT($2, 11)
-         LIMIT 1
-       )
-     RETURNING id, studio_id, date::TEXT, start_time::TEXT,
-       (SELECT name  FROM clients  WHERE id = client_id) AS client_name,
-       (SELECT phone FROM clients  WHERE id = client_id) AS client_phone,
-       (SELECT name  FROM services WHERE id = service_id) AS service_name,
-       (SELECT price FROM services WHERE id = service_id) AS service_price`,
+    `UPDATE appointments a
+     SET status = 'cancelled'
+     FROM clients c
+     WHERE a.id = $1
+       AND a.status <> 'cancelled'
+       AND a.client_id = c.id
+       AND (c.phone = $2 OR c.phone = RIGHT($2, 11) OR c.phone = '55' || RIGHT($2, 11))
+     RETURNING a.id, a.studio_id, a.date::TEXT, a.start_time::TEXT,
+       c.name  AS client_name,
+       c.phone AS client_phone,
+       (SELECT name  FROM services WHERE id = a.service_id) AS service_name,
+       (SELECT price FROM services WHERE id = a.service_id) AS service_price`,
     [req.params.id, rawPhone]
   )
-
-  // debug — mostra resultado do UPDATE
-  console.log('[client-cancel] rows updated:', rows.length)
 
   if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado ou telefone inválido.' }); return }
 
