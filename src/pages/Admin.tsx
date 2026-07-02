@@ -49,7 +49,7 @@ export default function Admin() {
   const [appts, setAppts]       = useState<Appointment[]>([])
   const [blocks, setBlocks]     = useState<TimeBlock[]>([])
   const [services, setServices] = useState<ServiceRaw[]>([])
-  const [config, setConfig]     = useState<StudioConfig>({ studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00' })
+  const [config, setConfig]     = useState<StudioConfig>({ studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00', notification_phone: '' })
   const workStart = timeMin(config.work_start)
   const workEnd   = timeMin(config.work_end)
   const [stats, setStats]       = useState<DashStats | null>(null)
@@ -769,10 +769,22 @@ function getSlug(): string {
   } catch { return '' }
 }
 
+function phoneMaskInput(v: string): string {
+  const d = v.replace(/\D/g, '')
+  if (d.length <= 2)  return `(${d}`
+  if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`
+  if (d.length <= 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`
+}
+
 function ConfigSheet({ config, onSave }: { config: StudioConfig; onSave: (c: Partial<StudioConfig>) => Promise<void> }) {
-  const [days, setDays]     = useState<number[]>(config.work_days)
-  const [start, setStart]   = useState(config.work_start)
-  const [end, setEnd]       = useState(config.work_end)
+  const [days,  setDays]  = useState<number[]>(config.work_days)
+  const [start, setStart] = useState(config.work_start)
+  const [end,   setEnd]   = useState(config.work_end)
+  const [phone, setPhone] = useState(() => {
+    const raw = config.notification_phone ?? ''
+    return raw ? phoneMaskInput(raw) : ''
+  })
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const times = allTimeSlots(6 * 60, 23 * 60)
@@ -796,7 +808,7 @@ function ConfigSheet({ config, onSave }: { config: StudioConfig; onSave: (c: Par
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ work_days: days, work_start: start, work_end: end })
+    await onSave({ work_days: days, work_start: start, work_end: end, notification_phone: phone.replace(/\D/g,'') })
     setSaving(false)
   }
 
@@ -837,6 +849,18 @@ function ConfigSheet({ config, onSave }: { config: StudioConfig; onSave: (c: Par
           </select>
         </div>
       </div>
+
+      <label style={lblS}>WhatsApp para notificações</label>
+      <input
+        type="tel"
+        placeholder="(71) 99999-0001"
+        value={phone}
+        onChange={e => setPhone(phoneMaskInput(e.target.value))}
+        style={{ ...fldS, marginBottom: 6 }}
+      />
+      <p style={{ fontSize: 11.5, color: T.inkSoft, margin: '0 0 22px' }}>
+        Número que recebe avisos de novos agendamentos e cancelamentos.
+      </p>
 
       <button onClick={handleSave} disabled={saving || days.length === 0} style={{ width: '100%', background: T.primary, color: T.primaryInk, border: 'none', borderRadius: T.radius, padding: '15px', fontWeight: 700, fontSize: 15.5, cursor: 'pointer', fontFamily: T.body, opacity: saving || days.length === 0 ? 0.6 : 1 }}>
         {saving ? 'Salvando…' : 'Salvar configurações'}

@@ -253,11 +253,12 @@ export interface DashStats {
 }
 
 export interface StudioConfig {
-  studio_name: string
-  studio_slug: string
-  work_days:   number[]
-  work_start:  string
-  work_end:    string
+  studio_name:        string
+  studio_slug:        string
+  work_days:          number[]
+  work_start:         string
+  work_end:           string
+  notification_phone: string
 }
 
 export interface TimeBlock {
