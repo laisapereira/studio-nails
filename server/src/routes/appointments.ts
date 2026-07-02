@@ -129,6 +129,7 @@ appointmentsRouter.post('/', async (req, res) => {
   // Resolve serviços — aceita service_ids[] (multi), service_id ou service (slug)
   let svcIds: number[]
   let totalDuration: number
+  let totalPrice: number
   let primarySvcId: number
   let primarySvcSlug: string
   let primarySvcName: string
@@ -136,23 +137,25 @@ appointmentsRouter.post('/', async (req, res) => {
   if (service_ids && Array.isArray(service_ids) && service_ids.length > 0) {
     const ids = service_ids.map(Number)
     const { rows: svcs } = await pool.query(
-      'SELECT id, slug, name, duration FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true ORDER BY id',
+      'SELECT id, slug, name, duration, price FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true ORDER BY id',
       [ids, studioId]
     )
     if (svcs.length !== ids.length) { res.status(400).json({ error: 'Um ou mais serviços não encontrados.' }); return }
     svcIds         = svcs.map(s => s.id)
     totalDuration  = svcs.reduce((sum: number, s: any) => sum + s.duration, 0)
+    totalPrice     = svcs.reduce((sum: number, s: any) => sum + Number(s.price), 0)
     primarySvcId   = svcs[0].id
     primarySvcSlug = svcs[0].slug
     primarySvcName = svcs.map((s: any) => s.name).join(' + ')
   } else {
     let svcRow
-    if (service)    { svcRow = await pool.query('SELECT id, slug, name, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true', [service, studioId]) }
-    else if (service_id) { svcRow = await pool.query('SELECT id, slug, name, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true', [service_id, studioId]) }
+    if (service)    { svcRow = await pool.query('SELECT id, slug, name, duration, price FROM services WHERE slug = $1 AND studio_id = $2 AND active = true', [service, studioId]) }
+    else if (service_id) { svcRow = await pool.query('SELECT id, slug, name, duration, price FROM services WHERE id = $1 AND studio_id = $2 AND active = true', [service_id, studioId]) }
     else { res.status(400).json({ error: 'Informe service, service_id ou service_ids.' }); return }
     if (!svcRow.rows[0]) { res.status(400).json({ error: 'Serviço não encontrado ou inativo.' }); return }
     svcIds         = [svcRow.rows[0].id]
     totalDuration  = svcRow.rows[0].duration
+    totalPrice     = Number(svcRow.rows[0].price)
     primarySvcId   = svcRow.rows[0].id
     primarySvcSlug = svcRow.rows[0].slug
     primarySvcName = svcRow.rows[0].name
@@ -205,7 +208,9 @@ appointmentsRouter.post('/', async (req, res) => {
 
     notifyMichele('new', {
       clientName:  clientName.trim(),
+      clientPhone: rawPhone,
       serviceName: primarySvcName,
+      totalPrice,
       date,
       startTime:   start_time.slice(0, 5),
       endTime,
@@ -227,8 +232,10 @@ appointmentsRouter.patch('/:id/cancel', requireAuth, async (req, res) => {
     `UPDATE appointments SET status = 'cancelled', notes = COALESCE($1, notes)
      WHERE id = $2 AND studio_id = $3
      RETURNING id, status, date::TEXT, start_time::TEXT,
-       (SELECT name FROM clients  WHERE id = client_id)  AS client_name,
-       (SELECT name FROM services WHERE id = service_id) AS service_name`,
+       (SELECT name  FROM clients  WHERE id = client_id)  AS client_name,
+       (SELECT phone FROM clients  WHERE id = client_id)  AS client_phone,
+       (SELECT name  FROM services WHERE id = service_id) AS service_name,
+       (SELECT price FROM services WHERE id = service_id) AS service_price`,
     [reason ?? null, req.params.id, req.admin!.studio_id]
   )
   if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado.' }); return }
@@ -236,7 +243,9 @@ appointmentsRouter.patch('/:id/cancel', requireAuth, async (req, res) => {
 
   notifyMichele('cancel', {
     clientName:  r.client_name,
+    clientPhone: r.client_phone,
     serviceName: r.service_name,
+    totalPrice:  Number(r.service_price),
     date:        r.date,
     startTime:   r.start_time.slice(0, 5),
   }).catch(err => console.error('[whatsapp] notify cancel failed:', err))
