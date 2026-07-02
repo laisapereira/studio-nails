@@ -2,9 +2,19 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAuth } from '../middleware/auth.js'
 import { resolveStudio } from '../utils.js'
-import { notifyMichele } from '../lib/whatsapp.js'
+import { notifyAppt } from '../lib/whatsapp.js'
 
 export const appointmentsRouter = Router()
+
+async function studioMeta(studioId: number): Promise<{ slug: string; notifPhone: string | null }> {
+  const { rows } = await pool.query(`
+    SELECT s.slug, sc.value AS notif_phone
+    FROM studios s
+    LEFT JOIN studio_config sc ON sc.studio_id = s.id AND sc.key = 'notification_phone'
+    WHERE s.id = $1
+  `, [studioId])
+  return { slug: rows[0]?.slug ?? '', notifPhone: rows[0]?.notif_phone ?? null }
+}
 
 // GET /api/appointments — admin, scoped to studio
 appointmentsRouter.get('/', requireAuth, async (req, res) => {
@@ -206,15 +216,18 @@ appointmentsRouter.post('/', async (req, res) => {
 
     await conn.query('COMMIT')
 
-    notifyMichele('new', {
-      clientName:  clientName.trim(),
-      clientPhone: rawPhone,
-      serviceName: primarySvcName,
-      totalPrice,
-      date,
-      startTime:   start_time.slice(0, 5),
-      endTime,
-    }).catch(err => console.error('[whatsapp] notify new failed:', err))
+    studioMeta(studioId).then(({ slug, notifPhone }) => {
+      if (!notifPhone) return
+      notifyAppt('new', {
+        clientName:  clientName.trim(),
+        clientPhone: rawPhone,
+        serviceName: primarySvcName,
+        totalPrice,
+        date,
+        startTime:   start_time.slice(0, 5),
+        endTime,
+      }, notifPhone, slug).catch(err => console.error('[whatsapp] notify new failed:', err))
+    }).catch(() => {})
 
     res.status(201).json({ id: apptId, status: 'confirmed', service: primarySvcSlug, date, start_time: start_time.slice(0,5), end_time: endTime })
   } catch (e) {
@@ -241,14 +254,17 @@ appointmentsRouter.patch('/:id/cancel', requireAuth, async (req, res) => {
   if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado.' }); return }
   const r = rows[0]
 
-  notifyMichele('cancel', {
-    clientName:  r.client_name,
-    clientPhone: r.client_phone,
-    serviceName: r.service_name,
-    totalPrice:  Number(r.service_price),
-    date:        r.date,
-    startTime:   r.start_time.slice(0, 5),
-  }).catch(err => console.error('[whatsapp] notify cancel failed:', err))
+  studioMeta(req.admin!.studio_id).then(({ slug, notifPhone }) => {
+    if (!notifPhone) return
+    notifyAppt('cancel', {
+      clientName:  r.client_name,
+      clientPhone: r.client_phone,
+      serviceName: r.service_name,
+      totalPrice:  Number(r.service_price),
+      date:        r.date,
+      startTime:   r.start_time.slice(0, 5),
+    }, notifPhone, slug).catch(err => console.error('[whatsapp] notify cancel failed:', err))
+  }).catch(() => {})
 
   res.json({ id: r.id, status: r.status })
 })

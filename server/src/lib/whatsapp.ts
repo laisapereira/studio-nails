@@ -1,26 +1,24 @@
-const BASE     = process.env.UAZAPI_URL
-const TOKEN    = process.env.UAZAPI_TOKEN
-const INSTANCE = process.env.UAZAPI_INSTANCE
-const PHONE    = process.env.MICHELE_PHONE
-const SITE_URL = process.env.SITE_URL
+const BASE         = process.env.UAZAPI_URL
+const TOKEN        = process.env.UAZAPI_TOKEN
+const INSTANCE     = process.env.UAZAPI_INSTANCE
+const SITE_BASE_URL = process.env.SITE_BASE_URL  // ex: https://venhagenda.com.br
 
-type Event = 'new' | 'cancel'
+type ApptEvent = 'new' | 'cancel'
 
-interface ApptInfo {
+export interface ApptInfo {
   clientName:  string
   clientPhone: string
   serviceName: string
   totalPrice:  number
-  date:        string  // YYYY-MM-DD
-  startTime:   string  // HH:MM
+  date:        string   // YYYY-MM-DD
+  startTime:   string   // HH:MM
   endTime?:    string
 }
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-  const day  = new Date(y, m - 1, d).getDay()
-  return `${days[day]}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+  return `${days[new Date(y, m - 1, d).getDay()]}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
 }
 
 function formatPhone(phone: string): string {
@@ -34,19 +32,6 @@ function formatPrice(value: number): string {
   return `R$ ${value.toFixed(2).replace('.', ',')}`
 }
 
-function buildMessage(event: Event, a: ApptInfo): string {
-  const date   = formatDate(a.date)
-  const phone  = formatPhone(a.clientPhone)
-  const price  = formatPrice(a.totalPrice)
-  const agenda = SITE_URL ? `\n👉 ${SITE_URL}` : ''
-  if (event === 'new') {
-    const range = a.endTime ? ` → ${a.endTime}` : ''
-    return `📅 *Novo agendamento!*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🕐 ${date} às ${a.startTime}${range}${agenda}`
-  }
-  return `❌ *Cancelamento*\n👤 ${a.clientName}\n📱 ${phone}\n✨ ${a.serviceName}\n💰 ${price}\n🗓️ ${date} às ${a.startTime}${agenda}`
-}
-
-// normaliza para 5571999990001 (adiciona 55 se vier sem DDI)
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (digits.length === 11) return `55${digits}`
@@ -54,22 +39,37 @@ function normalizePhone(phone: string): string {
   return digits
 }
 
-export async function notifyMichele(event: Event, appt: ApptInfo): Promise<void> {
-  if (!BASE || !TOKEN || !INSTANCE || !PHONE) {
+export async function sendText(toPhone: string, text: string): Promise<void> {
+  if (!BASE || !TOKEN || !INSTANCE) {
     console.warn('[whatsapp] UAZAPI_* não configuradas — notificação ignorada')
     return
   }
   const res = await fetch(`${BASE}/send/text`, {
-    method:  'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      token:    TOKEN,
-      instance: INSTANCE,
-    },
-    body: JSON.stringify({
-      number: normalizePhone(PHONE),
-      text:   buildMessage(event, appt),
-    }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', token: TOKEN, instance: INSTANCE },
+    body: JSON.stringify({ number: normalizePhone(toPhone), text }),
   })
   if (!res.ok) throw new Error(`UazAPI ${res.status}: ${await res.text()}`)
+}
+
+export async function notifyAppt(
+  event: ApptEvent,
+  appt: ApptInfo,
+  toPhone: string,
+  studioSlug?: string,
+): Promise<void> {
+  const date  = formatDate(appt.date)
+  const phone = formatPhone(appt.clientPhone)
+  const price = formatPrice(appt.totalPrice)
+  const link  = (SITE_BASE_URL && studioSlug) ? `\n👉 ${SITE_BASE_URL}/${studioSlug}/admin` : ''
+
+  let text: string
+  if (event === 'new') {
+    const range = appt.endTime ? ` → ${appt.endTime}` : ''
+    text = `📅 *Novo agendamento!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🕐 ${date} às ${appt.startTime}${range}${link}`
+  } else {
+    text = `❌ *Cancelamento*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
+  }
+
+  await sendText(toPhone, text)
 }

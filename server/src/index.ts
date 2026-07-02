@@ -11,6 +11,7 @@ import { configRouter } from './routes/config.js'
 import { blocksRouter } from './routes/blocks.js'
 import { clientAuthRouter } from './routes/clientAuth.js'
 import { vipRouter }        from './routes/vip.js'
+import { startScheduledNotifs } from './lib/scheduledNotifs.js'
 
 // ── Validações de startup ─────────────────────────────────────
 if (!process.env.JWT_SECRET) {
@@ -75,4 +76,5 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }))
 const PORT = process.env.API_PORT ?? 3001
 app.listen(PORT, () => {
   console.log(`[API] http://localhost:${PORT}`)
+  startScheduledNotifs()
 })
