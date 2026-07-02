@@ -107,6 +107,8 @@ export const api = {
       req<ApptCreated>('POST', '/appointments', data, false),
     cancel: (id: string, reason?: string) =>
       req<{ id: string; status: string }>('PATCH', `/appointments/${id}/cancel`, { reason }),
+    clientCancel: (id: string, phone: string) =>
+      req<{ id: string; status: string }>('PATCH', `/appointments/${id}/client-cancel`, { phone }, false),
     update: (id: string, data: { status?: string; notes?: string }) =>
       req<Appointment>('PATCH', `/appointments/${id}/cancel`, data),
   },

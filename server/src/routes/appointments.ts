@@ -218,7 +218,7 @@ appointmentsRouter.post('/', async (req, res) => {
 
     studioMeta(studioId).then(({ slug, notifPhone }) => {
       if (!notifPhone) return
-      notifyAppt('new', {
+      notifyAppt(reschedule_id ? 'reschedule' : 'new', {
         clientName:  clientName.trim(),
         clientPhone: rawPhone,
         serviceName: primarySvcName,
@@ -267,6 +267,47 @@ appointmentsRouter.patch('/:id/cancel', requireAuth, async (req, res) => {
   }).catch(() => {})
 
   res.json({ id: r.id, status: r.status })
+})
+
+// PATCH /api/appointments/:id/client-cancel — público, verificado pelo telefone da cliente
+appointmentsRouter.patch('/:id/client-cancel', async (req, res) => {
+  const { phone } = req.body as { phone?: string }
+  if (!phone) { res.status(400).json({ error: 'Telefone obrigatório.' }); return }
+
+  const rawPhone = phone.replace(/\D/g, '')
+  // aceita com ou sem DDI (55): compara os últimos 11 dígitos
+  const { rows } = await pool.query(
+    `UPDATE appointments SET status = 'cancelled'
+     WHERE id = $1
+       AND status <> 'cancelled'
+       AND client_id = (
+         SELECT id FROM clients
+         WHERE RIGHT(phone, 11) = RIGHT($2, 11)
+         LIMIT 1
+       )
+     RETURNING id, studio_id, date::TEXT, start_time::TEXT,
+       (SELECT name  FROM clients  WHERE id = client_id) AS client_name,
+       (SELECT phone FROM clients  WHERE id = client_id) AS client_phone,
+       (SELECT name  FROM services WHERE id = service_id) AS service_name,
+       (SELECT price FROM services WHERE id = service_id) AS service_price`,
+    [req.params.id, rawPhone]
+  )
+  if (!rows[0]) { res.status(404).json({ error: 'Agendamento não encontrado ou telefone inválido.' }); return }
+
+  const r = rows[0]
+  studioMeta(r.studio_id).then(({ slug, notifPhone }) => {
+    if (!notifPhone) return
+    notifyAppt('client_cancel', {
+      clientName:  r.client_name,
+      clientPhone: r.client_phone,
+      serviceName: r.service_name,
+      totalPrice:  Number(r.service_price),
+      date:        r.date,
+      startTime:   r.start_time.slice(0, 5),
+    }, notifPhone, slug).catch(err => console.error('[whatsapp] notify client_cancel failed:', err))
+  }).catch(() => {})
+
+  res.json({ id: r.id, status: 'cancelled' })
 })
 
 function addMinutes(time: string, minutes: number): string {

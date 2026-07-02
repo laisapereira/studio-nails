@@ -31,6 +31,20 @@ export default function MyAppointments() {
   const [clientName,  setClientName]  = useState<string | null>(null);
   const [appts,       setAppts]       = useState<ClientAppointment[]>([]);
   const [selected,    setSelected]    = useState<number | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  async function handleClientCancel(apptId: string) {
+    const rawPhone = phone.replace(/\D/g, '');
+    setCancellingId(apptId);
+    try {
+      await api.appointments.clientCancel(apptId, rawPhone);
+      setAppts(prev => prev.map(a => a.id === apptId ? { ...a, status: 'cancelled' } : a));
+    } catch {
+      alert('Não foi possível cancelar. Tente novamente.');
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -150,7 +164,14 @@ export default function MyAppointments() {
             {upcoming.length > 0 && (
               <>
                 <div style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Próximos agendamentos</div>
-                {upcoming.map(a => <ApptCard key={a.id} appt={a} />)}
+                {upcoming.map(a => (
+                  <ApptCard
+                    key={a.id}
+                    appt={a}
+                    cancelling={cancellingId === a.id}
+                    onCancel={a.status === 'confirmed' ? () => handleClientCancel(a.id) : undefined}
+                  />
+                ))}
               </>
             )}
 
@@ -171,7 +192,10 @@ export default function MyAppointments() {
   );
 }
 
-function ApptCard({ appt: a, muted }: { appt: ClientAppointment; muted?: boolean }) {
+function ApptCard({ appt: a, muted, onCancel, cancelling }: {
+  appt: ClientAppointment; muted?: boolean
+  onCancel?: () => void; cancelling?: boolean
+}) {
   const [open, setOpen] = useState(false);
 
   const svcs    = a.all_services?.length ? a.all_services : [{ id: a.service_id, name: a.service_name, price: a.service_price, emoji: a.service_emoji, duration: a.service_duration }];
@@ -224,6 +248,17 @@ function ApptCard({ appt: a, muted }: { appt: ClientAppointment; muted?: boolean
             >
               Remarcar 📅
             </a>
+            {onCancel && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) onCancel()
+                }}
+                disabled={cancelling}
+                style={{ flex: 1, background: "transparent", color: "#c2453b", border: "1.5px solid #e7b3ae", borderRadius: T.radiusSm, padding: "11px", fontSize: 14, fontWeight: 700, cursor: cancelling ? "default" : "pointer", fontFamily: T.body, opacity: cancelling ? 0.6 : 1 }}
+              >
+                {cancelling ? "Cancelando…" : "Cancelar ✕"}
+              </button>
+            )}
           </div>
         </div>
       )}

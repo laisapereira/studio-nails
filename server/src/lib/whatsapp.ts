@@ -3,7 +3,7 @@ const TOKEN        = process.env.UAZAPI_TOKEN
 const INSTANCE     = process.env.UAZAPI_INSTANCE
 const SITE_BASE_URL = process.env.SITE_BASE_URL  // ex: https://venhagenda.com.br
 
-type ApptEvent = 'new' | 'cancel'
+type ApptEvent = 'new' | 'reschedule' | 'cancel' | 'client_cancel'
 
 export interface ApptInfo {
   clientName:  string
@@ -67,6 +67,11 @@ export async function notifyAppt(
   if (event === 'new') {
     const range = appt.endTime ? ` → ${appt.endTime}` : ''
     text = `📅 *Novo agendamento!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🕐 ${date} às ${appt.startTime}${range}${link}`
+  } else if (event === 'reschedule') {
+    const range = appt.endTime ? ` → ${appt.endTime}` : ''
+    text = `🔄 *Remarcação!*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🕐 ${date} às ${appt.startTime}${range}${link}`
+  } else if (event === 'client_cancel') {
+    text = `❌ *Cancelamento pela cliente*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
   } else {
     text = `❌ *Cancelamento*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
   }
