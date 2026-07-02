@@ -4,7 +4,14 @@ import { api, Service, StudioConfig } from "../lib/api";
 import { Icon } from "../components/Icon";
 import { T, serviceTint, serviceIcon } from "../theme/terra";
 
-type Step = "home" | "service" | "date" | "time" | "info" | "confirm" | "success";
+type Step =
+  | "home"
+  | "service"
+  | "date"
+  | "time"
+  | "info"
+  | "confirm"
+  | "success";
 
 type BookingState = {
   services: Service[];
@@ -96,8 +103,12 @@ export default function Booking() {
   const [step, setStep] = useState<Step>("home");
   const [services, setServices] = useState<Service[]>([]);
   const [config, setConfig] = useState<StudioConfig>({
-    studio_name: '', studio_slug: '', work_days: [1,2,3,4,5], work_start: '09:00', work_end: '18:00',
-  })
+    studio_name: "",
+    studio_slug: "",
+    work_days: [1, 2, 3, 4, 5],
+    work_start: "09:00",
+    work_end: "18:00",
+  });
   const [booking, setBooking] = useState<BookingState>({
     services: [],
     date: "",
@@ -111,7 +122,13 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rescheduleModal, setRescheduleModal] = useState<{ id: string; date: string; start_time: string; service_name: string; all_service_names: string } | null>(null);
+  const [rescheduleModal, setRescheduleModal] = useState<{
+    id: string;
+    date: string;
+    start_time: string;
+    service_name: string;
+    all_service_names: string;
+  } | null>(null);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(false);
 
@@ -119,16 +136,16 @@ export default function Booking() {
     setBooking((prev) => ({ ...prev, ...patch }));
 
   const primaryService = booking.services[0] ?? null;
-  const totalDuration  = booking.services.reduce((s, sv) => s + sv.duration, 0);
-  const totalPrice     = booking.services.reduce((s, sv) => s + sv.price, 0);
+  const totalDuration = booking.services.reduce((s, sv) => s + sv.duration, 0);
+  const totalPrice = booking.services.reduce((s, sv) => s + sv.price, 0);
 
   function toggleService(svc: Service) {
-    setBooking(prev => {
-      const exists = prev.services.find(s => s.id === svc.id);
+    setBooking((prev) => {
+      const exists = prev.services.find((s) => s.id === svc.id);
       return {
         ...prev,
         services: exists
-          ? prev.services.filter(s => s.id !== svc.id)
+          ? prev.services.filter((s) => s.id !== svc.id)
           : [...prev.services, svc],
         // limpa horário ao mudar serviços
         time: "",
@@ -153,7 +170,7 @@ export default function Booking() {
     const end90 = new Date(today);
     end90.setDate(today.getDate() + 90);
     const end = end90.toISOString().slice(0, 10);
-    const ids = booking.services.map(s => s.id);
+    const ids = booking.services.map((s) => s.id);
     api.appointments
       .availableDates(start, end, ids.length === 1 ? ids[0] : ids, slug)
       .then(setDatesWithSlots)
@@ -166,14 +183,16 @@ export default function Booking() {
     setSlotsLoading(true);
     setSlots([]);
     setError(null);
-    const ids = booking.services.map(s => s.id);
+    const ids = booking.services.map((s) => s.id);
     const dateSnap = booking.date;
     api.appointments
       .slots(dateSnap, ids.length === 1 ? ids[0] : ids, slug)
-      .then(fetched => {
+      .then((fetched) => {
         setSlots(fetched);
         if (fetched.length === 0) {
-          setDatesWithSlots(prev => prev ? prev.filter(d => d !== dateSnap) : prev);
+          setDatesWithSlots((prev) =>
+            prev ? prev.filter((d) => d !== dateSnap) : prev,
+          );
         }
       })
       .catch(() => setError("Erro ao buscar horários. Tente novamente."))
@@ -185,7 +204,7 @@ export default function Booking() {
     setLoading(true);
     setError(null);
     try {
-      const ids = booking.services.map(s => s.id);
+      const ids = booking.services.map((s) => s.id);
       await api.appointments.create({
         client_name: booking.name.trim(),
         phone: toRawPhone(booking.phone),
@@ -244,20 +263,20 @@ export default function Booking() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       // compara com a data escolhida, não com hoje
-      const newDate = new Date(booking.date + 'T00:00:00');
-      const upcoming = appts.filter(a => {
-        const d = new Date(a.date + 'T00:00:00');
+      const newDate = new Date(booking.date + "T00:00:00");
+      const upcoming = appts.filter((a) => {
+        const d = new Date(a.date + "T00:00:00");
         const diffDays = Math.abs((d.getTime() - newDate.getTime()) / 86400000);
         return d >= today && diffDays <= 7;
       });
       if (upcoming.length > 0) {
         setRescheduleModal(upcoming[0]);
       } else {
-        go('confirm');
+        go("confirm");
       }
     } catch (err) {
-      console.error('[checkExisting] falhou, seguindo sem popup:', err);
-      go('confirm');
+      console.error("[checkExisting] falhou, seguindo sem popup:", err);
+      go("confirm");
     } finally {
       setCheckingExisting(false);
     }
@@ -332,19 +351,23 @@ export default function Booking() {
             </button>
           )}
           <div style={{ flex: 1 }}>
-            <img src="/logo-white.png" alt="venhagenda" style={{ height: '4rem', display: 'block' }} />
+            <img
+              src="/logo-white.png"
+              alt="venhagenda"
+              style={{ height: "5rem", display: "block" }}
+            />
             <div
               style={{
                 fontFamily: T.heading,
                 fontWeight: T.headingWeight,
-                fontSize: '1.4rem',
+                fontSize: "1.4rem",
                 lineHeight: 1,
                 color: T.ink,
                 marginTop: 6,
-                textAlign: 'center',
+                textAlign: "center",
               }}
             >
-              {config.studio_name || ''}
+              {config.studio_name || ""}
             </div>
           </div>
           <div
@@ -408,21 +431,43 @@ export default function Booking() {
         )}
 
         {/* Chips */}
-        {booking.services.length > 0 && step !== "home" && step !== "service" && step !== "success" && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 20 }}>
-            {[
-              booking.services.map(s => s.name).join(" + "),
-              booking.date ? `${bDate(booking.date).dow} ${bDate(booking.date).day}` : null,
-              booking.time || null,
-            ]
-              .filter(Boolean)
-              .map((x, i) => (
-                <span key={i} style={{ fontSize: 12, fontWeight: 600, color: T.primary, background: T.primarySoft, borderRadius: 999, padding: "5px 12px" }}>
-                  {x}
-                </span>
-              ))}
-          </div>
-        )}
+        {booking.services.length > 0 &&
+          step !== "home" &&
+          step !== "service" &&
+          step !== "success" && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 7,
+                marginBottom: 20,
+              }}
+            >
+              {[
+                booking.services.map((s) => s.name).join(" + "),
+                booking.date
+                  ? `${bDate(booking.date).dow} ${bDate(booking.date).day}`
+                  : null,
+                booking.time || null,
+              ]
+                .filter(Boolean)
+                .map((x, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: T.primary,
+                      background: T.primarySoft,
+                      borderRadius: 999,
+                      padding: "5px 12px",
+                    }}
+                  >
+                    {x}
+                  </span>
+                ))}
+            </div>
+          )}
 
         {/* STEP: home */}
         {step === "home" && (
@@ -438,46 +483,97 @@ export default function Booking() {
             >
               Olá! 💅
             </div>
-            <p style={{ fontSize: 14, color: T.inkSoft, marginBottom: 28, lineHeight: 1.5 }}>
+            <p
+              style={{
+                fontSize: 14,
+                color: T.inkSoft,
+                marginBottom: 28,
+                lineHeight: 1.5,
+              }}
+            >
               O que você deseja fazer?
             </p>
 
             <button
               onClick={() => go("service")}
               style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 16,
-                padding: "18px 20px", marginBottom: 12,
-                background: T.primary, color: T.primaryInk,
-                border: "none", borderRadius: T.radius,
-                cursor: "pointer", fontFamily: T.body, textAlign: "left",
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                padding: "18px 20px",
+                marginBottom: 12,
+                background: T.primary,
+                color: T.primaryInk,
+                border: "none",
+                borderRadius: T.radius,
+                cursor: "pointer",
+                fontFamily: T.body,
+                textAlign: "left",
                 boxShadow: "0 8px 20px -8px rgba(0,0,0,0.35)",
               }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
                 <Icon name="calendar" size={22} color={T.primaryInk} sw={1.5} />
               </div>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>Agendar novo horário</div>
-                <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 2 }}>Escolha serviço, data e horário</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>
+                  Agendar novo horário
+                </div>
+                <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 2 }}>
+                  Escolha serviço, data e horário
+                </div>
               </div>
             </button>
 
             <button
               onClick={() => navigate(`/meus-agendamentos`)}
               style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 16,
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
                 padding: "18px 20px",
-                background: T.surface, color: T.ink,
-                border: `1.5px solid ${T.line}`, borderRadius: T.radius,
-                cursor: "pointer", fontFamily: T.body,
+                background: T.surface,
+                color: T.ink,
+                border: `1.5px solid ${T.line}`,
+                borderRadius: T.radius,
+                cursor: "pointer",
+                fontFamily: T.body,
               }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: T.primarySoft, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: T.primarySoft,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
                 <Icon name="clock" size={22} color={T.primary} sw={1.5} />
               </div>
               <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>Meus agendamentos</div>
-                <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>Veja seus próximos horários</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>
+                  Meus agendamentos
+                </div>
+                <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>
+                  Veja seus próximos horários
+                </div>
               </div>
             </button>
           </div>
@@ -500,33 +596,98 @@ export default function Booking() {
                 </p>
               )}
               {services.map((svc) => {
-                const c        = serviceTint(svc.id);
-                const selected = booking.services.some(s => s.id === svc.id);
+                const c = serviceTint(svc.id);
+                const selected = booking.services.some((s) => s.id === svc.id);
                 return (
                   <button
                     key={svc.id}
                     onClick={() => toggleService(svc)}
                     style={{
-                      display: "flex", alignItems: "center", gap: 14,
-                      padding: "14px 15px", cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: "14px 15px",
+                      cursor: "pointer",
                       background: selected ? T.primarySoft : T.surface,
                       border: `1.5px solid ${selected ? T.primary : T.line}`,
-                      borderRadius: T.radius, textAlign: "left", fontFamily: T.body,
+                      borderRadius: T.radius,
+                      textAlign: "left",
+                      fontFamily: T.body,
                     }}
                   >
-                    <div style={{ width: 46, height: 46, borderRadius: 13, background: c.tint, color: c.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <div
+                      style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 13,
+                        background: c.tint,
+                        color: c.ink,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
                       <Icon name={serviceIcon(svc.id)} size={24} sw={1.5} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink }}>{svc.name}</div>
-                      <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 2 }}>{durFmt(svc.duration)}</div>
+                      <div
+                        style={{
+                          fontSize: 15.5,
+                          fontWeight: 700,
+                          color: T.ink,
+                        }}
+                      >
+                        {svc.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          color: T.inkSoft,
+                          marginTop: 2,
+                        }}
+                      >
+                        {durFmt(svc.duration)}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                      <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 18, color: T.ink }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 6,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: T.heading,
+                          fontWeight: T.headingWeight,
+                          fontSize: 18,
+                          color: T.ink,
+                        }}
+                      >
                         {brl(svc.price).replace("R$ ", "R$")}
                       </div>
-                      <div style={{ width: 22, height: 22, borderRadius: 999, border: `2px solid ${selected ? T.primary : T.line}`, background: selected ? T.primary : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {selected && <Icon name="check" size={13} color={T.primaryInk} sw={2.5} />}
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          border: `2px solid ${selected ? T.primary : T.line}`,
+                          background: selected ? T.primary : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {selected && (
+                          <Icon
+                            name="check"
+                            size={13}
+                            color={T.primaryInk}
+                            sw={2.5}
+                          />
+                        )}
                       </div>
                     </div>
                   </button>
@@ -535,12 +696,43 @@ export default function Booking() {
             </div>
 
             {booking.services.length > 0 && (
-              <div style={{ marginTop: 16, background: T.surface, border: `1px solid ${T.line}`, borderRadius: T.radius, padding: "14px 16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, marginBottom: 10 }}>
-                  <span style={{ color: T.inkSoft, fontSize: 13 }}>{durFmt(totalDuration)} no total</span>
+              <div
+                style={{
+                  marginTop: 16,
+                  background: T.surface,
+                  border: `1px solid ${T.line}`,
+                  borderRadius: T.radius,
+                  padding: "14px 16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontWeight: 700,
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ color: T.inkSoft, fontSize: 13 }}>
+                    {durFmt(totalDuration)} no total
+                  </span>
                   <span>{brl(totalPrice)}</span>
                 </div>
-                <button onClick={() => go("date")} style={{ width: "100%", background: T.primary, color: T.primaryInk, border: "none", borderRadius: T.radius, padding: "13px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: T.body }}>
+                <button
+                  onClick={() => go("date")}
+                  style={{
+                    width: "100%",
+                    background: T.primary,
+                    color: T.primaryInk,
+                    border: "none",
+                    borderRadius: T.radius,
+                    padding: "13px",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: T.body,
+                  }}
+                >
                   Continuar →
                 </button>
               </div>
@@ -559,74 +751,80 @@ export default function Booking() {
               <p style={{ fontSize: 14, color: T.inkSoft, marginTop: 20 }}>
                 Verificando disponibilidade…
               </p>
-            ) : (() => {
-              const displayDates = datesWithSlots !== null
-                ? availableDates.filter(d => datesWithSlots.includes(d))
-                : availableDates;
-              return displayDates.length === 0 ? (
-                <p style={{ fontSize: 14, color: T.inkSoft, marginTop: 20 }}>
-                  Nenhum horário disponível nos próximos 30 dias. Entre em contato pelo WhatsApp.
-                </p>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: 9,
-                    marginTop: 16,
-                  }}
-                >
-                  {displayDates.map((iso) => {
-                    const d = bDate(iso);
-                    const on = booking.date === iso;
-                    return (
-                      <button
-                        key={iso}
-                        onClick={() => {
-                          set({ date: iso, time: "" });
-                          go("time");
-                        }}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 2,
-                          padding: "12px 4px",
-                          cursor: "pointer",
-                          fontFamily: T.body,
-                          background: on ? T.primary : T.surface,
-                          color: on ? T.primaryInk : T.ink,
-                          border: `1px solid ${on ? T.primary : T.line}`,
-                          borderRadius: T.radiusSm,
-                        }}
-                      >
-                        <span
+            ) : (
+              (() => {
+                const displayDates =
+                  datesWithSlots !== null
+                    ? availableDates.filter((d) => datesWithSlots.includes(d))
+                    : availableDates;
+                return displayDates.length === 0 ? (
+                  <p style={{ fontSize: 14, color: T.inkSoft, marginTop: 20 }}>
+                    Nenhum horário disponível nos próximos 30 dias. Entre em
+                    contato pelo WhatsApp.
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(4, 1fr)",
+                      gap: 9,
+                      marginTop: 16,
+                    }}
+                  >
+                    {displayDates.map((iso) => {
+                      const d = bDate(iso);
+                      const on = booking.date === iso;
+                      return (
+                        <button
+                          key={iso}
+                          onClick={() => {
+                            set({ date: iso, time: "" });
+                            go("time");
+                          }}
                           style={{
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            opacity: 0.75,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 2,
+                            padding: "12px 4px",
+                            cursor: "pointer",
+                            fontFamily: T.body,
+                            background: on ? T.primary : T.surface,
+                            color: on ? T.primaryInk : T.ink,
+                            border: `1px solid ${on ? T.primary : T.line}`,
+                            borderRadius: T.radiusSm,
                           }}
                         >
-                          {d.dow}
-                        </span>
-                        <span
-                          style={{
-                            fontFamily: T.heading,
-                            fontWeight: T.headingWeight,
-                            fontSize: 22,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {d.day}
-                        </span>
-                        <span style={{ fontSize: 10, opacity: 0.7 }}>{d.mon}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              opacity: 0.75,
+                            }}
+                          >
+                            {d.dow}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: T.heading,
+                              fontWeight: T.headingWeight,
+                              fontSize: 22,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {d.day}
+                          </span>
+                          <span style={{ fontSize: 10, opacity: 0.7 }}>
+                            {d.mon}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            )}
           </Section>
         )}
 
@@ -754,7 +952,7 @@ export default function Booking() {
               }}
             >
               {[
-                ["Serviço", booking.services.map(s => s.name).join(" + ")],
+                ["Serviço", booking.services.map((s) => s.name).join(" + ")],
                 [
                   "Dia",
                   booking.date
@@ -890,30 +1088,65 @@ export default function Booking() {
               {(() => {
                 const c = serviceTint(primaryService!.id);
                 return (
-                  <div style={{ width: 46, height: 46, borderRadius: 13, background: c.tint, color: c.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name={serviceIcon(primaryService!.id)} size={24} sw={1.5} />
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 13,
+                      background: c.tint,
+                      color: c.ink,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon
+                      name={serviceIcon(primaryService!.id)}
+                      size={24}
+                      sw={1.5}
+                    />
                   </div>
                 );
               })()}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
-                  {booking.services.map(s => s.name).join(" + ")}
+                  {booking.services.map((s) => s.name).join(" + ")}
                 </div>
                 <div style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 1 }}>
-                  {booking.time} → {endOf(booking.time, totalDuration)} · {brl(totalPrice)}
+                  {booking.time} → {endOf(booking.time, totalDuration)} ·{" "}
+                  {brl(totalPrice)}
                 </div>
               </div>
             </div>
             <button
               onClick={() => navigate(`/meus-agendamentos`)}
-              style={{ width: "100%", marginTop: 22, background: T.primarySoft, color: T.primary, border: "none", borderRadius: T.radius, padding: "14px 16px", fontSize: 14, fontWeight: 700, textAlign: "center", cursor: "pointer", fontFamily: T.body }}
+              style={{
+                width: "100%",
+                marginTop: 22,
+                background: T.primarySoft,
+                color: T.primary,
+                border: "none",
+                borderRadius: T.radius,
+                padding: "14px 16px",
+                fontSize: 14,
+                fontWeight: 700,
+                textAlign: "center",
+                cursor: "pointer",
+                fontFamily: T.body,
+              }}
             >
               Ver meus agendamentos →
             </button>
 
             <button
               onClick={() => {
-                setBooking({ services: [], date: "", time: "", name: "", phone: "" });
+                setBooking({
+                  services: [],
+                  date: "",
+                  time: "",
+                  name: "",
+                  phone: "",
+                });
                 go("home");
               }}
               style={{
@@ -932,12 +1165,24 @@ export default function Booking() {
           </div>
         )}
         {/* Footer */}
-        <div style={{ marginTop: 40, paddingBottom: 8, textAlign: 'center' }}>
-          <img src="/logo-beige.png" alt="venhagenda" style={{ height: '4.5rem', marginBottom: 8 }} />
+        <div style={{ marginTop: 40, paddingBottom: 8, textAlign: "center" }}>
+          <img
+            src="/logo-beige.png"
+            alt="venhagenda"
+            style={{ height: "4.5rem", marginBottom: 8 }}
+          />
           <div style={{ fontSize: 11, color: T.inkSoft }}>
-            soluções por{' '}
-            <a href="https://instagram.com/aboutlaisa" target="_blank" rel="noreferrer"
-              style={{ color: T.accent, fontWeight: 700, textDecoration: 'none' }}>
+            soluções por{" "}
+            <a
+              href="https://instagram.com/aboutlaisa"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                color: T.accent,
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
               @aboutlaisa
             </a>
           </div>
@@ -946,21 +1191,54 @@ export default function Booking() {
 
       {/* Modal de remarcação */}
       {rescheduleModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-          zIndex: 999, padding: '0 0 0 0',
-        }}>
-          <div style={{
-            background: T.surface, borderRadius: `${T.radius} ${T.radius} 0 0`,
-            padding: '28px 20px 40px', maxWidth: 520, width: '100%',
-          }}>
-            <div style={{ fontFamily: T.heading, fontWeight: T.headingWeight, fontSize: 22, color: T.ink, marginBottom: 16 }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            zIndex: 999,
+            padding: "0 0 0 0",
+          }}
+        >
+          <div
+            style={{
+              background: T.surface,
+              borderRadius: `${T.radius} ${T.radius} 0 0`,
+              padding: "28px 20px 40px",
+              maxWidth: 520,
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: T.heading,
+                fontWeight: T.headingWeight,
+                fontSize: 22,
+                color: T.ink,
+                marginBottom: 16,
+              }}
+            >
               Você já tem um agendamento!
             </div>
-            <div style={{ background: T.bg, borderRadius: T.radiusSm, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div
+              style={{
+                background: T.bg,
+                borderRadius: T.radiusSm,
+                padding: "14px 16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
               <span style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>
-                📅 {(() => { const d = bDate(rescheduleModal.date); return `${d.dow}, ${d.day} de ${d.monFull}`; })()}
+                📅{" "}
+                {(() => {
+                  const d = bDate(rescheduleModal.date);
+                  return `${d.dow}, ${d.day} de ${d.monFull}`;
+                })()}
               </span>
               <span style={{ fontSize: 13.5, color: T.inkSoft }}>
                 🕐 {rescheduleModal.start_time.slice(0, 5)}
@@ -969,17 +1247,35 @@ export default function Booking() {
                 ✨ {rescheduleModal.all_service_names}
               </span>
             </div>
-            <p style={{ fontSize: 14, color: T.inkSoft, margin: '14px 0 20px', lineHeight: 1.5 }}>
+            <p
+              style={{
+                fontSize: 14,
+                color: T.inkSoft,
+                margin: "14px 0 20px",
+                lineHeight: 1.5,
+              }}
+            >
               Deseja remarcar para o novo horário que você escolheu?
             </p>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: "flex", gap: 10 }}>
               <button
                 onClick={() => {
                   setRescheduleId(rescheduleModal.id);
                   setRescheduleModal(null);
-                  go('confirm');
+                  go("confirm");
                 }}
-                style={{ flex: 1, background: T.primary, color: T.primaryInk, border: 'none', borderRadius: T.radius, padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.body }}
+                style={{
+                  flex: 1,
+                  background: T.primary,
+                  color: T.primaryInk,
+                  border: "none",
+                  borderRadius: T.radius,
+                  padding: "14px",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: T.body,
+                }}
               >
                 Sim, remarcar
               </button>
@@ -987,9 +1283,20 @@ export default function Booking() {
                 onClick={() => {
                   setRescheduleId(null);
                   setRescheduleModal(null);
-                  go('confirm');
+                  go("confirm");
                 }}
-                style={{ flex: 1, background: T.surface, color: T.ink, border: `1.5px solid ${T.line}`, borderRadius: T.radius, padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.body }}
+                style={{
+                  flex: 1,
+                  background: T.surface,
+                  color: T.ink,
+                  border: `1.5px solid ${T.line}`,
+                  borderRadius: T.radius,
+                  padding: "14px",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: T.body,
+                }}
               >
                 Não, criar novo
               </button>
@@ -1018,7 +1325,9 @@ export default function Booking() {
                   booking.phone.replace(/\D/g, "").length >= 10;
                 return (
                   <button
-                    onClick={() => ok && !checkingExisting && checkExistingAndProceed()}
+                    onClick={() =>
+                      ok && !checkingExisting && checkExistingAndProceed()
+                    }
                     disabled={!ok || checkingExisting}
                     style={{
                       width: "100%",
@@ -1040,7 +1349,9 @@ export default function Booking() {
                     }}
                   >
                     {checkingExisting ? "Verificando…" : "Continuar"}{" "}
-                    {!checkingExisting && <Icon name="arrowRight" size={19} color={T.primaryInk} />}
+                    {!checkingExisting && (
+                      <Icon name="arrowRight" size={19} color={T.primaryInk} />
+                    )}
                   </button>
                 );
               })()}
