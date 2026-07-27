@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
-import { resolveStudio } from '../utils.js'
+import { resolveTenant } from '../utils.js'
 export const slotsRouter = Router()
 
 // GET /api/slots/available?date=YYYY-MM-DD&service_id=2&studio=SLUG
@@ -16,8 +16,8 @@ slotsRouter.get('/available', async (req, res) => {
       return
     }
 
-    const studioId = await resolveStudio(studio)
-    if (!studioId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
+    const tenantId = await resolveTenant(studio)
+    if (!tenantId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
 
     let serviceId: number
     let duration: number
@@ -26,8 +26,8 @@ slotsRouter.get('/available', async (req, res) => {
       // Multi-serviço: somar durações de todos os IDs
       const ids = service_ids.split(',').map(Number).filter(Boolean)
       const { rows } = await pool.query(
-        'SELECT id, SUM(duration)::INT AS total FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true GROUP BY id',
-        [ids, studioId]
+        'SELECT id, SUM(duration)::INT AS total FROM services WHERE id = ANY($1) AND tenant_id = $2 AND active = true GROUP BY id',
+        [ids, tenantId]
       )
       if (rows.length !== ids.length) { res.status(404).json({ error: 'Um ou mais serviços não encontrados.' }); return }
       serviceId = ids[0]
@@ -35,12 +35,12 @@ slotsRouter.get('/available', async (req, res) => {
     } else {
       const svcRow = service_id
         ? await pool.query(
-            'SELECT id, slug, name, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true',
-            [service_id, studioId]
+            'SELECT id, slug, name, duration FROM services WHERE id = $1 AND tenant_id = $2 AND active = true',
+            [service_id, tenantId]
           )
         : await pool.query(
-            'SELECT id, slug, name, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true',
-            [service, studioId]
+            'SELECT id, slug, name, duration FROM services WHERE slug = $1 AND tenant_id = $2 AND active = true',
+            [service, tenantId]
           )
       if (!svcRow.rows[0]) { res.status(404).json({ error: 'Serviço não encontrado.' }); return }
       serviceId = svcRow.rows[0].id
@@ -63,7 +63,7 @@ slotsRouter.get('/available', async (req, res) => {
         const dateStr = d.toISOString().slice(0, 10)
         const slots = await pool.query(
           'SELECT slot_time::TEXT FROM available_slots($1::DATE, $2::INT, $3::INT, $4::INT) ORDER BY slot_time',
-          [dateStr, serviceId, studioId, duration]
+          [dateStr, serviceId, tenantId, duration]
         )
         if (slots.rows.length > 0) {
           days[dateStr] = slots.rows.map(r => {
@@ -80,7 +80,7 @@ slotsRouter.get('/available', async (req, res) => {
 
     const slots = await pool.query(
       'SELECT slot_time::TEXT FROM available_slots($1::DATE, $2::INT, $3::INT, $4::INT) ORDER BY slot_time',
-      [date, serviceId, studioId, duration]
+      [date, serviceId, tenantId, duration]
     )
 
     const result = slots.rows.map(r => {
@@ -109,17 +109,17 @@ slotsRouter.get('/week', async (req, res) => {
       return
     }
 
-    const studioId = await resolveStudio(studio)
-    if (!studioId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
+    const tenantId = await resolveTenant(studio)
+    if (!tenantId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
 
     const svcRow = service_id
       ? await pool.query(
-          'SELECT id, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true',
-          [service_id, studioId]
+          'SELECT id, duration FROM services WHERE id = $1 AND tenant_id = $2 AND active = true',
+          [service_id, tenantId]
         )
       : await pool.query(
-          'SELECT id, duration FROM services WHERE slug = $1 AND studio_id = $2 AND active = true',
-          [service, studioId]
+          'SELECT id, duration FROM services WHERE slug = $1 AND tenant_id = $2 AND active = true',
+          [service, tenantId]
         )
 
     if (!svcRow.rows[0]) { res.status(404).json({ error: 'Serviço não encontrado.' }); return }
@@ -138,7 +138,7 @@ slotsRouter.get('/week', async (req, res) => {
       const dateStr = d.toISOString().slice(0, 10)
       const slots = await pool.query(
         'SELECT slot_time::TEXT FROM available_slots($1::DATE, $2::INT, $3::INT, $4::INT) ORDER BY slot_time',
-        [dateStr, serviceId, studioId]
+        [dateStr, serviceId, tenantId]
       )
       result[dateStr] = slots.rows.map(r => {
         const s = r.slot_time.slice(0, 5)
@@ -165,8 +165,8 @@ slotsRouter.get('/available-dates', async (req, res) => {
       return
     }
 
-    const studioId = await resolveStudio(studio)
-    if (!studioId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
+    const tenantId = await resolveTenant(studio)
+    if (!tenantId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
 
     let serviceId: number
     let duration: number
@@ -174,16 +174,16 @@ slotsRouter.get('/available-dates', async (req, res) => {
     if (service_ids) {
       const ids = service_ids.split(',').map(Number).filter(Boolean)
       const { rows } = await pool.query(
-        'SELECT id, duration FROM services WHERE id = ANY($1) AND studio_id = $2 AND active = true',
-        [ids, studioId]
+        'SELECT id, duration FROM services WHERE id = ANY($1) AND tenant_id = $2 AND active = true',
+        [ids, tenantId]
       )
       if (rows.length !== ids.length) { res.status(404).json({ error: 'Um ou mais serviços não encontrados.' }); return }
       serviceId = ids[0]
       duration = rows.reduce((sum: number, r: any) => sum + r.duration, 0)
     } else {
       const { rows } = await pool.query(
-        'SELECT id, duration FROM services WHERE id = $1 AND studio_id = $2 AND active = true',
-        [service_id, studioId]
+        'SELECT id, duration FROM services WHERE id = $1 AND tenant_id = $2 AND active = true',
+        [service_id, tenantId]
       )
       if (!rows[0]) { res.status(404).json({ error: 'Serviço não encontrado.' }); return }
       serviceId = rows[0].id
@@ -191,8 +191,8 @@ slotsRouter.get('/available-dates', async (req, res) => {
     }
 
     const { rows: cfgRows } = await pool.query(
-      "SELECT value FROM studio_config WHERE studio_id = $1 AND key = 'work_days'",
-      [studioId]
+      "SELECT value FROM tenant_config WHERE tenant_id = $1 AND key = 'work_days'",
+      [tenantId]
     )
     const workDaysIsodow: number[] = cfgRows[0]
       ? cfgRows[0].value.split(',').map(Number)
@@ -210,7 +210,7 @@ slotsRouter.get('/available-dates', async (req, res) => {
         const dateStr = d.toISOString().slice(0, 10)
         const { rows: slotRows } = await pool.query(
           'SELECT 1 FROM available_slots($1::DATE, $2::INT, $3::INT, $4::INT) LIMIT 1',
-          [dateStr, serviceId, studioId, duration]
+          [dateStr, serviceId, tenantId, duration]
         )
         if (slotRows.length > 0) dates.push(dateStr)
       }

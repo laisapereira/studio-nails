@@ -15,29 +15,18 @@ clientAuthRouter.post('/appointments', async (req, res) => {
     SELECT
       a.id, a.date::TEXT, a.start_time::TEXT, a.end_time::TEXT, a.status,
       c.name AS client_name,
-      s.id    AS service_id,   s.name  AS service_name,
-      s.duration AS service_duration, s.price AS service_price,
-      s.color AS service_color,       s.emoji AS service_emoji,
-      st.id   AS studio_id,   st.name AS studio_name, st.slug AS studio_slug,
-      COALESCE(
-        (SELECT json_agg(json_build_object(
-            'id', sv.id, 'name', sv.name,
-            'price', sv.price, 'emoji', sv.emoji,
-            'duration', sv.duration
-          ) ORDER BY aps.sort_order)
-         FROM appointment_services aps
-         JOIN services sv ON sv.id = aps.service_id
-         WHERE aps.appointment_id = a.id),
-        json_build_array(json_build_object(
-            'id', s.id, 'name', s.name,
-            'price', s.price, 'emoji', s.emoji,
-            'duration', s.duration
-        ))
-      ) AS all_services
+      (a.services->0->>'id')::INT      AS service_id,
+      a.services->0->>'name'           AS service_name,
+      (a.services->0->>'duration')::INT AS service_duration,
+      (a.services->0->>'price')::NUMERIC AS service_price,
+      a.services->0->>'color'          AS service_color,
+      a.services->0->>'emoji'          AS service_emoji,
+      a.services AS all_services,
+      a.total_price, a.total_duration,
+      t.id AS studio_id, t.name AS studio_name, t.slug AS studio_slug
     FROM appointments a
-    JOIN clients  c  ON c.id  = a.client_id
-    JOIN services s  ON s.id  = a.service_id
-    JOIN studios  st ON st.id = a.studio_id
+    JOIN customers c ON c.id = a.customer_id
+    JOIN tenants   t ON t.id = a.tenant_id
     WHERE c.phone = $1
     ORDER BY a.date DESC, a.start_time DESC
   `, [rawPhone])
@@ -62,6 +51,8 @@ clientAuthRouter.post('/appointments', async (req, res) => {
       service_color:    r.service_color,
       service_emoji:    r.service_emoji,
       all_services:     r.all_services ?? [],
+      total_price:      Number(r.total_price),
+      total_duration:   Number(r.total_duration),
       studio_id:        r.studio_id,
       studio_name:      r.studio_name,
       studio_slug:      r.studio_slug,

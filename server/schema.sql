@@ -1,87 +1,107 @@
--- Studio da Michele — Schema PostgreSQL
+-- venhagenda — Schema PostgreSQL (instalações novas)
 -- Execute: psql "postgresql://user:pass@localhost:5434/evolution" -f server/schema.sql
 -- Em produção: montado em /docker-entrypoint-initdb.d/ para rodar automaticamente
+-- Bancos existentes: usar server/migrations/ (001..003), nunca este arquivo.
+--
+-- Nomenclatura B2B2C:
+--   tenants   = o B  (a empreendedora/estúdio, dona da agenda)
+--   users     = login administrativo da dona do estúdio
+--   customers = o C  (cliente final que agenda) — GLOBAL, vinculada a N tenants
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
--- ── studios ──────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS studios (
-  id         SERIAL PRIMARY KEY,
-  name       TEXT NOT NULL,
-  slug       TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- ── tenants ──────────────────────────────────────────────────
+-- plan: 'premium' tem whatsapp_instance própria (número dedicado);
+--       'basic' usa o número central compartilhado (instância via env)
+CREATE TABLE IF NOT EXISTS tenants (
+  id                SERIAL PRIMARY KEY,
+  name              TEXT NOT NULL,
+  slug              TEXT NOT NULL UNIQUE,
+  address           TEXT,
+  plan              TEXT NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic', 'premium')),
+  whatsapp_instance TEXT UNIQUE,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ── studio_config ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS studio_config (
-  studio_id INT          NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
+-- ── tenant_config ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tenant_config (
+  tenant_id INT          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   key       VARCHAR(50)  NOT NULL,
   value     TEXT         NOT NULL,
-  PRIMARY KEY (studio_id, key)
+  PRIMARY KEY (tenant_id, key)
 );
 
--- ── admins ───────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS admins (
+-- ── users (login admin da dona do estúdio) ───────────────────
+CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
-  studio_id     INT          NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
+  tenant_id     INT          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   email         VARCHAR(255) NOT NULL UNIQUE,
   password_hash TEXT         NOT NULL,
   created_at    TIMESTAMPTZ  DEFAULT NOW()
 );
 
 -- ── services ─────────────────────────────────────────────────
--- Seed feito pelo endpoint /api/auth/setup após criar o studio
+-- Seed feito pelo endpoint /api/auth/setup após criar o tenant
+-- reminder_days_before: quantos dias antes do horário a cliente recebe lembrete
 CREATE TABLE IF NOT EXISTS services (
-  id         SERIAL PRIMARY KEY,
-  studio_id  INT           NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
-  name       TEXT          NOT NULL,
-  duration   INT           NOT NULL,
-  price      NUMERIC(10,2) NOT NULL,
-  color      TEXT          NOT NULL DEFAULT '#C4956A',
-  emoji      TEXT          NOT NULL DEFAULT '💅',
-  slug       TEXT,
-  active     BOOLEAN       NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ   DEFAULT NOW()
+  id                   SERIAL PRIMARY KEY,
+  tenant_id            INT           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name                 TEXT          NOT NULL,
+  duration             INT           NOT NULL,
+  price                NUMERIC(10,2) NOT NULL,
+  color                TEXT          NOT NULL DEFAULT '#C4956A',
+  emoji                TEXT          NOT NULL DEFAULT '💅',
+  slug                 TEXT,
+  active               BOOLEAN       NOT NULL DEFAULT true,
+  reminder_days_before INT           NOT NULL DEFAULT 2 CHECK (reminder_days_before >= 0),
+  created_at           TIMESTAMPTZ   DEFAULT NOW()
 );
 
--- ── clients ──────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS clients (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  studio_id  INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
-  name       TEXT NOT NULL,
-  phone      TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (studio_id, phone)
+-- ── customers (globais — a mesma pessoa em N tenants) ────────
+-- email/password_hash nullable: reservados para login formal futuro;
+-- o fluxo atual é lookup por telefone (sempre 200, anti-enumeração)
+CREATE TABLE IF NOT EXISTS customers (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          TEXT  NOT NULL,
+  phone         TEXT  NOT NULL UNIQUE,
+  tenant_ids    INT[] NOT NULL,
+  email         VARCHAR(255) UNIQUE,
+  password_hash TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_customers_tenant_ids ON customers USING GIN (tenant_ids);
 
 -- ── appointments ─────────────────────────────────────────────
+-- services: snapshot JSONB [{id, name, price, duration, emoji, color}] congelado
+-- no momento do booking — histórico não muda se o serviço mudar depois.
+-- reminder_date = date - max(reminder_days_before dos serviços escolhidos)
 CREATE TABLE IF NOT EXISTS appointments (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  studio_id     INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
-  client_id     UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-  service_id    INT  NOT NULL REFERENCES services(id),
-  date          DATE NOT NULL,
-  start_time    TIME NOT NULL,
-  end_time      TIME NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'confirmed'
-                  CHECK (status IN ('pending','confirmed','cancelled','completed')),
-  created_via   TEXT NOT NULL DEFAULT 'panel'
-                  CHECK (created_via IN ('panel','bot','api','website')),
-  reminder_sent BOOLEAN NOT NULL DEFAULT false,
-  notes         TEXT,
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW()
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      INT   NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  customer_id    UUID  NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  services       JSONB NOT NULL,
+  total_price    NUMERIC(10,2) NOT NULL,
+  total_duration INT   NOT NULL,
+  date           DATE  NOT NULL,
+  start_time     TIME  NOT NULL,
+  end_time       TIME  NOT NULL,
+  status         TEXT  NOT NULL DEFAULT 'confirmed'
+                   CHECK (status IN ('pending','confirmed','cancelled','completed')),
+  created_via    TEXT  NOT NULL DEFAULT 'panel'
+                   CHECK (created_via IN ('panel','bot','api','website')),
+  reminder_date  DATE  NOT NULL,
+  reminder_sent  BOOLEAN NOT NULL DEFAULT false,
+  notes          TEXT,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_appointments_tenant_date ON appointments (tenant_id, date);
+CREATE INDEX IF NOT EXISTS idx_appointments_reminder    ON appointments (reminder_date) WHERE NOT reminder_sent;
 
--- ── time_blocks ───────────────────────────────────────────────
--- Migration (run once on existing DBs):
---   ALTER TABLE time_blocks RENAME COLUMN date TO start_date;
---   ALTER TABLE time_blocks ADD COLUMN end_date DATE;
---   UPDATE time_blocks SET end_date = start_date WHERE end_date IS NULL;
---   ALTER TABLE time_blocks ALTER COLUMN end_date SET NOT NULL;
+-- ── time_blocks (bloqueio manual de agenda, intervalo de datas) ──
 CREATE TABLE IF NOT EXISTS time_blocks (
   id         SERIAL PRIMARY KEY,
-  studio_id  INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
+  tenant_id  INT  NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   start_date DATE NOT NULL,
   end_date   DATE NOT NULL,
   start_time TIME NOT NULL,
@@ -90,45 +110,47 @@ CREATE TABLE IF NOT EXISTS time_blocks (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ── appointment_services ─────────────────────────────────────
--- Relação N:N entre agendamentos e serviços (suporta múltiplos serviços por agendamento)
-CREATE TABLE IF NOT EXISTS appointment_services (
-  appointment_id UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-  service_id     INT  NOT NULL REFERENCES services(id),
-  sort_order     SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (appointment_id, service_id)
+-- ── messages (tabela-fato: histórico completo WhatsApp) ──────
+-- Outbound: gravadas por server/src/lib/whatsapp.ts a cada envio via UazAPI.
+-- Inbound: serão gravadas pelo fluxo n8n (futuro) — external_id + instance
+-- têm UNIQUE parcial para dedupe de webhook.
+CREATE TABLE IF NOT EXISTS messages (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         INT  NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  customer_id       UUID REFERENCES customers(id)    ON DELETE SET NULL,
+  appointment_id    UUID REFERENCES appointments(id) ON DELETE SET NULL,
+  reply_to_id       UUID REFERENCES messages(id)     ON DELETE SET NULL,
+  phone             TEXT NOT NULL,
+  direction         TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  kind              TEXT NOT NULL DEFAULT 'bot'
+                      CHECK (kind IN ('bot', 'notification', 'reminder', 'summary')),
+  body              TEXT NOT NULL,
+  whatsapp_instance TEXT,
+  external_id       TEXT,           -- id da mensagem no UazAPI
+  status            TEXT NOT NULL DEFAULT 'sent'
+                      CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- ── vip_contacts ─────────────────────────────────────────────
--- Pessoas próximas da manicure que não devem receber mensagens automáticas
-CREATE TABLE IF NOT EXISTS vip_contacts (
-  studio_id INT  NOT NULL DEFAULT 1 REFERENCES studios(id) ON DELETE CASCADE,
-  phone     TEXT NOT NULL,
-  name      TEXT NOT NULL,
-  note      TEXT,
-  PRIMARY KEY (studio_id, phone)
-);
-
--- ── client_accounts ──────────────────────────────────────────
--- Conta global da cliente — vinculada a agendamentos pelo telefone
-CREATE TABLE IF NOT EXISTS client_accounts (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone         TEXT NOT NULL UNIQUE,
-  email         VARCHAR(255) UNIQUE,
-  password_hash TEXT NOT NULL,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS idx_messages_history ON messages (tenant_id, phone, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_appt    ON messages (appointment_id) WHERE appointment_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_external ON messages (whatsapp_instance, external_id)
+  WHERE external_id IS NOT NULL;
 
 -- ── bot_sessions ─────────────────────────────────────────────
+-- EXCEÇÃO de nomenclatura: studio_id mantido por contrato com o fluxo n8n,
+-- que faz SQL direto nesta tabela (select + upsert). Renomear para tenant_id
+-- somente junto com a atualização do fluxo.
 CREATE TABLE IF NOT EXISTS bot_sessions (
-  phone      VARCHAR(20)  PRIMARY KEY,
+  studio_id  INT          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  phone      VARCHAR(20)  NOT NULL,
   push_name  VARCHAR(100) NOT NULL DEFAULT '',
   intent     VARCHAR(20)  NOT NULL DEFAULT 'none',
   step       VARCHAR(30)  NOT NULL DEFAULT 'INIT',
   data       JSONB        NOT NULL DEFAULT '{}',
   history    JSONB        NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (studio_id, phone)
 );
 
 -- ── trigger: updated_at ──────────────────────────────────────
@@ -148,24 +170,25 @@ CREATE TRIGGER bot_sessions_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ── view: appointments_full ──────────────────────────────────
+-- service_* (singular) = derivados do 1º serviço do snapshot — contrato HTTP legado
 CREATE OR REPLACE VIEW appointments_full AS
 SELECT
-  a.id, a.studio_id, a.date, a.start_time, a.end_time, a.status,
-  a.reminder_sent, a.created_via, a.created_at, a.notes,
+  a.id, a.tenant_id, a.date, a.start_time, a.end_time, a.status,
+  a.reminder_sent, a.reminder_date, a.created_via, a.created_at, a.notes,
   c.name  AS client_name,
   c.phone AS client_phone,
-  s.id    AS service_id,
-  s.name  AS service_name,
-  s.duration  AS service_duration,
-  s.price     AS service_price,
-  s.color     AS service_color,
-  s.emoji     AS service_emoji
+  a.services, a.total_price, a.total_duration,
+  (a.services->0->>'id')::INT AS service_id,
+  a.services->0->>'name'      AS service_name,
+  a.services->0->>'color'     AS service_color,
+  a.services->0->>'emoji'     AS service_emoji,
+  (SELECT string_agg(e.value->>'name', ' + ' ORDER BY e.ordinality)
+     FROM jsonb_array_elements(a.services) WITH ORDINALITY e) AS all_service_names
 FROM appointments a
-JOIN clients  c ON c.id = a.client_id
-JOIN services s ON s.id = a.service_id;
+JOIN customers c ON c.id = a.customer_id;
 
 -- ── function: available_slots ────────────────────────────────
-CREATE OR REPLACE FUNCTION available_slots(p_date DATE, p_service_id INT, p_studio_id INT, p_duration INT DEFAULT NULL)
+CREATE OR REPLACE FUNCTION available_slots(p_date DATE, p_service_id INT, p_tenant_id INT, p_duration INT DEFAULT NULL)
 RETURNS TABLE(slot_time TIME)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -174,9 +197,9 @@ DECLARE
 BEGIN
   v_dow := EXTRACT(ISODOW FROM p_date);
 
-  SELECT value INTO v_work_days  FROM studio_config WHERE studio_id = p_studio_id AND key = 'work_days';
-  SELECT value::TIME INTO v_work_start FROM studio_config WHERE studio_id = p_studio_id AND key = 'work_start';
-  SELECT value::TIME INTO v_work_end   FROM studio_config WHERE studio_id = p_studio_id AND key = 'work_end';
+  SELECT value INTO v_work_days  FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_days';
+  SELECT value::TIME INTO v_work_start FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_start';
+  SELECT value::TIME INTO v_work_end   FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_end';
 
   IF v_work_days  IS NULL THEN v_work_days  := '1,2,3,4,5'; END IF;
   IF v_work_start IS NULL THEN v_work_start := '09:00'; END IF;
@@ -188,7 +211,7 @@ BEGIN
     v_duration := p_duration;
   ELSE
     SELECT duration INTO v_duration FROM services
-      WHERE id = p_service_id AND studio_id = p_studio_id AND active = true;
+      WHERE id = p_service_id AND tenant_id = p_tenant_id AND active = true;
     IF v_duration IS NULL THEN RETURN; END IF;
   END IF;
 
@@ -199,13 +222,13 @@ BEGIN
 
     IF NOT EXISTS (
       SELECT 1 FROM appointments
-      WHERE date = p_date AND studio_id = p_studio_id
+      WHERE date = p_date AND tenant_id = p_tenant_id
         AND status <> 'cancelled'
         AND start_time < v_end AND end_time > v_slot
     ) AND NOT EXISTS (
       SELECT 1 FROM time_blocks
       WHERE p_date BETWEEN start_date AND end_date
-        AND studio_id = p_studio_id
+        AND tenant_id = p_tenant_id
         AND start_time < v_end AND end_time > v_slot
     ) THEN
       slot_time := v_slot; RETURN NEXT;
@@ -217,29 +240,25 @@ END;
 $$;
 
 -- ── Row Level Security (RLS) ──────────────────────────────────
--- Isola dados por studio_id. A política é permissiva quando
--- app.studio_id não está definido na sessão (rotas públicas/bot).
--- Para rotas admin, o middleware define: SET app.studio_id = '<id>'
+-- Isola dados por tenant_id. A política é permissiva quando app.tenant_id
+-- não está definido na sessão (rotas públicas/bot). Para rotas admin, o
+-- middleware define: SET app.tenant_id = '<id>'
 
-ALTER TABLE admins           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE studio_config    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE services         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clients          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE appointments     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE time_blocks      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vip_contacts     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE appointment_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE services      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_blocks   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages      ENABLE ROW LEVEL SECURITY;
 
--- Política: permite acesso quando não há contexto de estúdio (rotas públicas)
--- ou quando o studio_id da linha bate com o contexto da sessão
-CREATE POLICY rls_admins        ON admins        USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_studio_config ON studio_config USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_services      ON services      USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_clients       ON clients       USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_appointments  ON appointments  USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_time_blocks   ON time_blocks   USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_vip_contacts  ON vip_contacts  USING (current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)='' OR studio_id=current_setting('app.studio_id',TRUE)::INT);
-CREATE POLICY rls_appt_services ON appointment_services USING (
-  current_setting('app.studio_id',TRUE) IS NULL OR current_setting('app.studio_id',TRUE)=''
-  OR EXISTS (SELECT 1 FROM appointments a WHERE a.id=appointment_id AND (current_setting('app.studio_id',TRUE)='' OR a.studio_id=current_setting('app.studio_id',TRUE)::INT))
+CREATE POLICY rls_users         ON users         USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_tenant_config ON tenant_config USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_services      ON services      USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_appointments  ON appointments  USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_time_blocks   ON time_blocks   USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_messages      ON messages      USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
+CREATE POLICY rls_customers     ON customers     USING (
+  current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)=''
+  OR tenant_ids @> ARRAY[current_setting('app.tenant_id',TRUE)::INT]
 );

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAuth } from '../middleware/auth.js'
-import { resolveStudio } from '../utils.js'
+import { resolveTenant } from '../utils.js'
 
 export const servicesRouter = Router()
 
@@ -10,12 +10,12 @@ servicesRouter.get('/', async (req, res) => {
   const { studio } = req.query as Record<string, string>
   if (!studio) { res.status(400).json({ error: 'Parâmetro studio é obrigatório.' }); return }
 
-  const studioId = await resolveStudio(studio)
-  if (!studioId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
+  const tenantId = await resolveTenant(studio)
+  if (!tenantId) { res.status(404).json({ error: 'Estúdio não encontrado.' }); return }
 
   const { rows } = await pool.query(
-    'SELECT id, slug, name, duration, price, color, emoji FROM services WHERE studio_id = $1 AND active = true ORDER BY id',
-    [studioId]
+    'SELECT id, slug, name, duration, price, color, emoji FROM services WHERE tenant_id = $1 AND active = true ORDER BY id',
+    [tenantId]
   )
   res.json({
     services: rows.map(r => ({
@@ -33,26 +33,26 @@ servicesRouter.get('/', async (req, res) => {
 // GET /api/services/all — admin (inclui inativos)
 servicesRouter.get('/all', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT * FROM services WHERE studio_id = $1 ORDER BY id',
-    [req.admin!.studio_id]
+    'SELECT * FROM services WHERE tenant_id = $1 ORDER BY id',
+    [req.admin!.tenant_id]
   )
   res.json(rows)
 })
 
 // POST /api/services — admin
 servicesRouter.post('/', requireAuth, async (req, res) => {
-  const { name, duration, price, color, emoji, slug } = req.body
+  const { name, duration, price, color, emoji, slug, reminder_days_before } = req.body
   const { rows } = await pool.query(
-    `INSERT INTO services (studio_id, name, duration, price, color, emoji, slug)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [req.admin!.studio_id, name, duration, price, color ?? '#C4956A', emoji ?? '💅', slug ?? null]
+    `INSERT INTO services (tenant_id, name, duration, price, color, emoji, slug, reminder_days_before)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [req.admin!.tenant_id, name, duration, price, color ?? '#C4956A', emoji ?? '💅', slug ?? null, reminder_days_before ?? 2]
   )
   res.status(201).json(rows[0])
 })
 
 // PATCH /api/services/:id — admin
 servicesRouter.patch('/:id', requireAuth, async (req, res) => {
-  const { name, duration, price, color, emoji, active, slug } = req.body
+  const { name, duration, price, color, emoji, active, slug, reminder_days_before } = req.body
   const { rows } = await pool.query(
     `UPDATE services
      SET name     = COALESCE($1, name),
@@ -61,9 +61,10 @@ servicesRouter.patch('/:id', requireAuth, async (req, res) => {
          color    = COALESCE($4, color),
          emoji    = COALESCE($5, emoji),
          active   = COALESCE($6, active),
-         slug     = COALESCE($7, slug)
-     WHERE id = $8 AND studio_id = $9 RETURNING *`,
-    [name, duration, price, color, emoji, active, slug, req.params.id, req.admin!.studio_id]
+         slug     = COALESCE($7, slug),
+         reminder_days_before = COALESCE($8, reminder_days_before)
+     WHERE id = $9 AND tenant_id = $10 RETURNING *`,
+    [name, duration, price, color, emoji, active, slug, reminder_days_before, req.params.id, req.admin!.tenant_id]
   )
   if (!rows[0]) { res.status(404).json({ error: 'Serviço não encontrado.' }); return }
   res.json(rows[0])
@@ -72,8 +73,8 @@ servicesRouter.patch('/:id', requireAuth, async (req, res) => {
 // DELETE /api/services/:id — soft delete, admin
 servicesRouter.delete('/:id', requireAuth, async (req, res) => {
   await pool.query(
-    'UPDATE services SET active = false WHERE id = $1 AND studio_id = $2',
-    [req.params.id, req.admin!.studio_id]
+    'UPDATE services SET active = false WHERE id = $1 AND tenant_id = $2',
+    [req.params.id, req.admin!.tenant_id]
   )
   res.status(204).send()
 })

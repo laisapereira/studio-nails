@@ -1,0 +1,1593 @@
+{
+  "name": "NailsBot â Fluxo Completo v4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "uazapi-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "896ae8c5-01f2-45f1-9201-5441c1f7d922",
+      "name": "Webhook Mensagem WPP",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2880,
+        224
+      ],
+      "webhookId": "evolution-webhook",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {}
+      },
+      "id": "4c46985e-0380-4ad3-a573-fde45ffe1e57",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -2592,
+        224
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "4ba9c39c-42b6-441e-9d37-0be8a62160ce",
+      "name": "Ignora",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -2016,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "09161e7e-6877-4ea2-a968-60bf567ca6a1",
+              "leftValue": "={{ $json.body.message.messageType }}",
+              "rightValue": "Conversation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "9b28de80-edf9-4960-af25-b90e781e6bc2",
+              "leftValue": "={{ $json.body.chat.wa_lastMessageType }}",
+              "rightValue": "ExtendedTextMessage",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "62f0a32d-6c61-4e4d-9717-9bafba9bb6e2",
+      "name": "Ã mensagem de texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2176,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://free.uazapi.com/send/text",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "uazApiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.body.chat.wa_chatid }}\",\n  \"text\": \"Oi! {{ $json.body.chat.wa_contactName }} ð Por enquanto sÃ³ consigo ler mensagens de texto. Pode digitar o que precisa?\"\n}",
+        "options": {}
+      },
+      "id": "4b451474-95c1-4197-afe2-54cbb87a4926",
+      "name": "Aviso sÃ³ texto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2032,
+        672
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "uazApiApi": {
+          "id": "aOPxglsWYMStTIaE",
+          "name": "UazAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst msg = body?.message || {};\nconst chat = body?.chat || {};\n\nconst phone = (chat.wa_chatid || '')\n  .replace('@s.whatsapp.net', '')\n  .replace('@lid', '')\n  .replace(/\\D/g, '');\n\nconst text = (msg.text || msg.content || '').trim();\nconst pushName = chat.wa_contactName || msg.senderName || '';\n\n// Identifica de qual instancia UazAPI (= qual studio) veio a mensagem.\n// TODO: confirmar o nome exato do campo com um payload real da UazAPI antes de subir pra producao.\nconst instance = body?.instance || body?.owner || '';\n\nreturn [{ json: { phone, text, pushName, instance } }];"
+      },
+      "id": "cf7277ec-9ca4-498a-97d7-abb3fe2d14c8",
+      "name": "Normalizar mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1936,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS studio_id, slug AS studio_slug, name AS studio_name\nFROM studios\nWHERE whatsapp_instance = '{{ $json.instance }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "resolve-studio-0001",
+      "name": "Resolver Studio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1832,
+        560
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "PXvFq9tc784FuHbg",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "studio-resolvido-cond",
+              "leftValue": "={{ $json.studio_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "studio-resolvido-0001",
+      "name": "Studio resolvido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1630,
+        560
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "instancia-nao-mapeada-0001",
+      "name": "Instancia nao mapeada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1630,
+        720
+      ],
+      "notes": "whatsapp_instance da mensagem recebida nao bate com nenhum studio cadastrado -- encerra sem gravar nada."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT phone, push_name, intent, step, data, history, updated_at\nFROM bot_sessions\nWHERE studio_id = {{ $json.studio_id }} AND phone = '{{ $('Normalizar mensagem').first().json.phone }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "b35921c5-e2b3-49ef-8951-cf63d023e982",
+      "name": "Buscar sessÃ£o",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1728,
+        400
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "PXvFq9tc784FuHbg",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Normalizar mensagem').first().json;\nconst studio = $('Resolver Studio').first().json;\nconst rows = $('Buscar sessÃ£o').all();\nconst hasSession = rows.length > 0 && rows[0].json?.phone;\n\nconst TIMEOUT_MINUTOS = 60;\n\nlet session;\nif (hasSession) {\n  const s = rows[0].json;\n  const updatedAt = new Date(s.updated_at);\n  const agora = new Date();\n  const minutosPassados = (agora - updatedAt) / 1000 / 60;\n  const expirou = minutosPassados > TIMEOUT_MINUTOS;\n\n  if (expirou) {\n    session = { intent: 'none', step: 'INIT', data: {}, history: [] };\n  } else {\n    session = {\n      intent: s.intent || 'none',\n      step: s.step || 'INIT',\n      data: typeof s.data === 'string' ? JSON.parse(s.data) : (s.data || {}),\n      history: typeof s.history === 'string' ? JSON.parse(s.history) : (s.history || [])\n    };\n  }\n} else {\n  session = { intent: 'none', step: 'INIT', data: {}, history: [] };\n}\n\nsession.history.push({ role: 'user', content: msg.text });\nif (session.history.length > 20) session.history = session.history.slice(-20);\n\nreturn [{\n  json: {\n    phone: msg.phone,\n    text: msg.text,\n    pushName: msg.pushName,\n    studioId: studio.studio_id,\n    studioSlug: studio.studio_slug,\n    studioName: studio.studio_name,\n    intent: session.intent,\n    step: session.step,\n    sessionData: session.data,\n    history: session.history\n  }\n}];"
+      },
+      "id": "0645caa6-5e85-40fe-829a-ddf587fd8753",
+      "name": "Mesclar sessÃ£o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1520,
+        400
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "respond",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-respond"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "check_slots",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-check-slots"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "create_appointment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-create-appointment"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "get_appointments",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-get-appointments"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "cancel_appointment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-cancel-appointment"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reschedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "act-reschedule"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "0bc0dc75-3898-4bf3-abec-1affbbad04fd",
+      "name": "Switch aÃ§Ã£o",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -896,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText: ctx.response,\n    intent: ctx.intent,\n    step: ctx.step,\n    sessionData: ctx.llmData,\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "2df4f981-3786-4064-a54f-e93babe97328",
+      "name": "Resposta direta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://studio-api-production-8345.up.railway.app/api/slots/available?date=week&studio={{ $json.studioSlug }}&service={{ encodeURIComponent($json.llmData.service) }}",
+        "options": {}
+      },
+      "id": "dc0d5378-be86-43b8-a730-78717377d6d4",
+      "name": "Buscar slots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\nconst apiResponse = $input.first().json;\n\nconst serviceName = ctx.llmData?.service || 'serviÃ§o';\nconst days = apiResponse.days || {};\n\nconst dateKeys = Object.keys(days);\nlet responseText;\n\nif (dateKeys.length === 0) {\n  responseText = 'Poxa, nÃ£o tem horÃ¡rio disponÃ­vel para ' + serviceName + ' nos prÃ³ximos dias ð\\n\\nQuer tentar outro serviÃ§o ou falar com a ' + (ctx.studioName || 'gente') + '?';\n} else {\n  const emojis = ['1ï¸â£','2ï¸â£','3ï¸â£','4ï¸â£','5ï¸â£','6ï¸â£','7ï¸â£','8ï¸â£'];\n  const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','SÃ¡b'];\n\n  responseText = 'HorÃ¡rios disponÃ­veis para *' + serviceName + '* ð\\n\\n';\n\n  dateKeys.forEach(date => {\n    const d = new Date(date + 'T00:00:00');\n    const label = diasSemana[d.getDay()] + ' ' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });\n    responseText += 'ð *' + label + '*\\n';\n    (days[date] || []).slice(0, 8).forEach((s, i) => {\n      responseText += (emojis[i] || 'âªï¸') + ' ' + s.start + '\\n';\n    });\n    responseText += '\\n';\n  });\n\n  responseText += 'Qual dia e horÃ¡rio vocÃª prefere? ð';\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText,\n    intent: ctx.intent,\n    step: 'WAITING_SLOT',\n    sessionData: ctx.llmData,\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "b3c4d7a5-8518-40c5-9fc2-8c3bde16f978",
+      "name": "Formatar slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://studio-api-production-8345.up.railway.app/api/appointments",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client_phone\": \"{{ $json.phone }}\",\n  \"client_name\": \"{{ $json.llmData.client_name || $json.pushName }}\",\n  \"service\": \"{{ $json.llmData.service }}\",\n  \"date\": \"{{ $json.llmData.date }}\",\n  \"start_time\": \"{{ $json.llmData.start_time }}\",\n  \"studio\": \"{{ $json.studioSlug }}\",\n  \"created_via\": \"bot\"\n}",
+        "options": {}
+      },
+      "id": "8a3d01aa-7ea8-4798-8404-1088d771ee83",
+      "name": "Criar agendamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -384,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\nconst apt = $input.first().json;\n\nlet responseText;\nif (apt.status === 'confirmed' || apt.id) {\n  responseText = 'Agendamento confirmado! â\\n\\n';\n  responseText += 'ð *' + (apt.service || ctx.llmData.service) + '*\\n';\n  responseText += 'ð ' + (apt.date || ctx.llmData.date) + '\\n';\n  responseText += 'ð ' + (apt.start_time || ctx.llmData.start_time) + '\\n\\n';\n  responseText += 'A ' + (ctx.studioName || 'gente') + ' te espera! Qualquer coisa Ã© sÃ³ chamar ð';\n} else {\n  responseText = 'Ops, nÃ£o consegui confirmar o agendamento ð Pode tentar de novo?';\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText,\n    intent: 'agendar',\n    step: 'DONE',\n    sessionData: { ...ctx.llmData, appointment_id: apt.id },\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "67a0ed72-3348-49a7-9c7b-b0fffd9a307d",
+      "name": "Formatar confirmaÃ§Ã£o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\nconst apiResponse = $input.first().json;\nconst appointments = apiResponse.appointments || [];\n\nlet responseText;\nif (appointments.length === 0) {\n  responseText = 'NÃ£o encontrei nenhum agendamento no seu nome ð¤\\n\\nQuer agendar um horÃ¡rio?';\n} else {\n  responseText = 'Seus agendamentos:\\n\\n';\n  appointments.forEach((a, i) => {\n    responseText += (i+1) + 'ï¸â£ *' + a.service_name + '* â ' + a.date + ' Ã s ' + a.start_time + '\\n';\n  });\n  if (ctx.intent === 'cancelar') {\n    responseText += '\\nQual deseja cancelar? (digite o nÃºmero)';\n  } else if (ctx.intent === 'remarcar') {\n    responseText += '\\nQual deseja remarcar? (digite o nÃºmero)';\n  }\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText,\n    intent: ctx.intent,\n    step: appointments.length > 0 ? 'WAITING_CONFIRM' : 'INIT',\n    sessionData: { ...ctx.llmData, appointments },\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "f396404e-51a4-4bfd-97ca-3ac002f6ad38",
+      "name": "Formatar agendamentos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText: 'Agendamento cancelado com sucesso â\\n\\nSe quiser reagendar, Ã© sÃ³ me chamar! ð',\n    intent: 'cancelar',\n    step: 'DONE',\n    sessionData: {},\n    history: ctx.history,\n    pushName: ctx.pushName\n  }\n}];"
+      },
+      "id": "398b4d68-8bcd-41ee-8abd-9df4ee8ff017",
+      "name": "Formatar cancelamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://studio-api-production-8345.up.railway.app/api/appointments",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client_phone\": \"{{ $json.phone }}\",\n  \"client_name\": \"{{ $json.llmData.client_name || $json.pushName }}\",\n  \"service\": \"{{ $json.llmData.service }}\",\n  \"date\": \"{{ $json.llmData.date }}\",\n  \"start_time\": \"{{ $json.llmData.start_time }}\",\n  \"studio\": \"{{ $json.studioSlug }}\",\n  \"reschedule_id\": \"{{ $json.llmData.appointment_id }}\",\n  \"created_via\": \"bot\"\n}",
+        "options": {}
+      },
+      "id": "05265426-3143-4945-937d-0054e191acab",
+      "name": "Remarcar agendamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\nconst result = $input.first().json;\n\nlet responseText;\nif (result.id || result.status === 'confirmed') {\n  responseText = 'Remarcado com sucesso! â\\n\\n';\n  responseText += 'ð *' + (result.service || ctx.llmData.service || '') + '*\\n';\n  responseText += 'ð ' + (result.date || ctx.llmData.date) + '\\n';\n  responseText += 'ð ' + (result.start_time || ctx.llmData.start_time) + '\\n\\n';\n  responseText += 'A ' + (ctx.studioName || 'gente') + ' te espera no novo horÃ¡rio! ð';\n} else {\n  responseText = 'NÃ£o consegui remarcar ð Pode tentar de novo?';\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText,\n    intent: 'remarcar',\n    step: 'DONE',\n    sessionData: {},\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "52a2729b-9948-437e-8584-36b4c94d716a",
+      "name": "Formatar remarcaÃ§Ã£o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText: ctx.response || 'Desculpa, nÃ£o entendi ð Pode repetir?',\n    intent: ctx.intent || 'none',\n    step: ctx.step || 'INIT',\n    sessionData: ctx.llmData || {},\n    history: ctx.history || [],\n    pushName: ctx.pushName || '',\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "be067f50-1c0d-44f4-a3e5-dcf31e6b4ee3",
+      "name": "Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://venhagenda.uazapi.com/text",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "uazApiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Webhook Mensagem WPP').item.json.body.chat.wa_chatid }}\",\n  \"text\": \"{{ $json.responseText }}\"\n}",
+        "options": {}
+      },
+      "id": "5ee29d0a-8f3f-434d-8871-c72cf63865d3",
+      "name": "Enviar mensagem WA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        608,
+        176
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "uazApiApi": {
+          "id": "aOPxglsWYMStTIaE",
+          "name": "UazAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega o contexto do formatador correto via Switch\n// O Enviar WA recebe de: Resposta direta, Formatar slots, Formatar confirmaÃ§Ã£o,\n// Formatar agendamentos, Formatar cancelamento, Formatar remarcaÃ§Ã£o, Fallback\n// Todos passam por Enviar WA â pegamos do nÃ³ de entrada dele\n\nconst possiveisContextos = [\n  'Resposta direta',\n  'Formatar slots',\n  'Formatar confirmaÃ§Ã£o',\n  'Formatar agendamentos',\n  'Formatar cancelamento',\n  'Formatar remarcaÃ§Ã£o',\n  'Pedir dado faltante',\n  'Fallback'\n];\n\nlet sessionCtx = null;\nfor (const nome of possiveisContextos) {\n  try {\n    const candidate = $node[nome].json;\n    if (candidate && candidate.phone) {\n      sessionCtx = candidate;\n      break;\n    }\n  } catch(e) { /* nÃ³ nÃ£o executou nessa rodada */ }\n}\n\nif (!sessionCtx) {\n  throw new Error('NÃ£o encontrei contexto de sessÃ£o em nenhum formatador');\n}\n\nif (!sessionCtx.studioId) {\n  throw new Error('Contexto de sessao sem studioId -- nao e seguro gravar bot_sessions sem studio resolvido');\n}\n\nconst history = Array.isArray(sessionCtx.history) ? sessionCtx.history : [];\nhistory.push({ role: 'assistant', content: sessionCtx.responseText || '' });\nconst trimmedHistory = history.slice(-20);\n\nreturn [{\n  json: {\n    phone:       sessionCtx.phone || '',\n    pushName:    sessionCtx.pushName || '',\n    studioId:    sessionCtx.studioId,\n    intent:      sessionCtx.intent || 'none',\n    step:        sessionCtx.step || 'INIT',\n    sessionData: JSON.stringify(typeof sessionCtx.sessionData === 'string' ? JSON.parse(sessionCtx.sessionData) : (sessionCtx.sessionData || {})),\n    history:     JSON.stringify(trimmedHistory)\n  }\n}];"
+      },
+      "id": "48eb30a2-0977-425a-b430-05ed88bd4a24",
+      "name": "Preparar sessÃ£o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_sessions (studio_id, phone, push_name, intent, step, data, history, updated_at)\nVALUES (\n  {{ $json.studioId }},\n  '{{ $json.phone }}',\n  '{{ $json.pushName }}',\n  '{{ $json.intent }}',\n  '{{ $json.step }}',\n  '{{ $json.sessionData }}'::jsonb,\n  '{{ $json.history }}'::jsonb,\n  NOW()\n)\nON CONFLICT (studio_id, phone) DO UPDATE SET\n  push_name = EXCLUDED.push_name,\n  intent = EXCLUDED.intent,\n  step = EXCLUDED.step,\n  data = EXCLUDED.data,\n  history = EXCLUDED.history,\n  updated_at = NOW();",
+        "options": {}
+      },
+      "id": "85f18bf1-d291-459c-ad15-0ce00a882dd6",
+      "name": "Salvar sessÃ£o",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1296,
+        320
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "=https://studio-api-production-8345.up.railway.app/api/services?studio={{ $json.studioSlug }}",
+        "options": {}
+      },
+      "id": "a270d2c6-1673-4880-b9d9-212ba153b686",
+      "name": "Buscar ServiÃ§os1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1072,
+        -272
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Mesclar sessÃ£o').first().json;\nconst hoje = new Date().toISOString().split('T')[0];\nconst diaSemana = ['domingo','segunda','terÃ§a','quarta','quinta','sexta','sÃ¡bado'][new Date().getDay()];\n\nlet listaServicos = '';\ntry {\n  const servicos = $('Buscar ServiÃ§os1').first().json.services || [];\n  listaServicos = servicos\n    .map(s => '- ' + s.id + ': ' + s.name + ' (' + s.duration_minutes + 'min) R$' + s.price)\n    .join('\\n');\n} catch(e) { listaServicos = '(indisponÃ­vel no momento)'; }\n\nconst systemPrompt = [\n  'VocÃª Ã© a assistente virtual da ' + (ctx.studioName || 'nossa manicure') + ', profissional de estÃ©tica.',\n  'Seja simpÃ¡tica, use emojis com moderaÃ§Ã£o. Responda SEMPRE em portuguÃªs brasileiro.',\n  'Se vc na primeira mensagem ja se apresentou, na segunda nÃ£o tem porque se apresentar novamente',\n  'SERVIÃOS DISPONÃVEIS:',\n  listaServicos,\n  '',\n  'ESTADO DA CONVERSA:',\n  '- IntenÃ§Ã£o atual: ' + ctx.intent,\n  '- Etapa atual: ' + ctx.step,\n  '- Dados jÃ¡ coletados: ' + JSON.stringify(ctx.sessionData),\n  '- Nome da cliente: ' + (ctx.pushName || 'cliente'),\n  'HOJE: ' + hoje + ' (' + diaSemana + ')',\n  '',\n  'FLUXO DE AGENDAMENTO (siga esta ordem):',\n'ETAPA 1 - WAITING_SERVICE: Mostre o menu de serviÃ§os com preÃ§os. Aguarde a cliente escolher.',\n'ETAPA 2 - check_slots: Cliente escolheu serviÃ§o â action=check_slots IMEDIATAMENTE, sem perguntar o dia. O sistema retorna os dias e horÃ¡rios disponÃ­veis da semana.',\n'ETAPA 3 - WAITING_SLOT: Mostre os dias e horÃ¡rios disponÃ­veis. Aguarde a cliente escolher.',\n'ETAPA 4 - create_appointment: Cliente escolheu o horÃ¡rio â action=create_appointment.',\n'',\n'REGRA: Nunca pergunte o dia antes de buscar os slots. Assim que souber o serviÃ§o â check_slots.',\n  '',\n  'FLUXO DE CANCELAMENTO:',\n  'ETAPA 1 - get_appointments: Busque os agendamentos â action=get_appointments.',\n  'ETAPA 2 - WAITING_CONFIRM: Mostre os agendamentos e pergunte qual cancelar.',\n  'ETAPA 3 - cancel_appointment: Com id confirmado â action=cancel_appointment.',\n  '',\n  'FLUXO DE REMARCAÃÃO:',\n  'ETAPA 1 - get_appointments: Busque os agendamentos â action=get_appointments.',\n  'ETAPA 2 - WAITING_CONFIRM: Mostre agendamentos e pergunte qual remarcar.',\n  'ETAPA 3 - WAITING_DATE: Pergunte nova data.',\n  'ETAPA 4 - check_slots: action=check_slots com nova data.',\n  'ETAPA 5 - WAITING_SLOT: Mostre horÃ¡rios. Aguarde escolha.',\n  'ETAPA 6 - Quando step=WAITING_SLOT e a cliente informar um dia/horÃ¡rio â action=create_appointment IMEDIATAMENTE. Extraia date (YYYY-MM-DD) e start_time (HH:MM) da mensagem.',\n  '7. Formatos aceitos para horÃ¡rio: \"TerÃ§a 02/06 Ã s 12:00\", \"segunda 9h\", \"dia 3 Ã s 14:30\" â converta para YYYY-MM-DD e HH:MM.',\n  '',\n  'REGRAS IMPORTANTES:',\n  '1. NUNCA pule etapas. NUNCA peÃ§a serviÃ§o e data na mesma mensagem.',\n  '2. Se a cliente jÃ¡ informou o serviÃ§o na primeira mensagem, pule a ETAPA 1 e vÃ¡ para ETAPA 2.',\n  '3. Se a cliente jÃ¡ informou serviÃ§o E data, vÃ¡ direto para check_slots.',\n  '4. Nunca invente horÃ¡rios. SÃ³ ofereÃ§a apÃ³s receber do sistema (check_slots).',\n  '5. Datas relativas (amanhÃ£, sexta, semana que vem) â converta para YYYY-MM-DD.',\n  '6. Se for saudaÃ§Ã£o sem pedido â apresente-se e mostre o menu de serviÃ§os.',\n  '',\n  'REGRA DE RESET (PRIORIDADE MÃXIMA):Se a mensagem atual do usuÃ¡rio expressar uma intenÃ§Ã£o NOVA e CLARA (ex: saudaÃ§Ã£o, novo agendamento, pergunta sobre horÃ¡rios) â IGNORE completamente o estado anterior e trate como conversa nova.',\n  'Responda APENAS com JSON vÃ¡lido (sem markdown, sem backticks):',\n  '{\"action\":\"respond|check_slots|create_appointment|get_appointments|cancel_appointment|reschedule\",\"response\":\"mensagem para a cliente (obrigatÃ³rio quando action=respond)\",\"intent\":\"agendar|cancelar|remarcar|duvida|saudacao\",\"step\":\"INIT|WAITING_SERVICE|WAITING_DATE|WAITING_SLOT|WAITING_NAME|WAITING_CONFIRM|DONE\",\"data\":{\"service\":\"id do serviÃ§o se identificado\",\"date\":\"YYYY-MM-DD se identificada\",\"start_time\":\"HH:MM se identificado\",\"client_name\":\"nome se identificado\",\"appointment_id\":\"id se aplicÃ¡vel\",\"reason\":\"motivo se cancelamento\"}}'\n].join('\\n');\n\nconst messages = [\n  { role: 'system', content: systemPrompt },\n  ...(Array.isArray(ctx.history) ? ctx.history.slice(-6) : []).filter(m => m && typeof m.content === 'string' && m.content.trim() !== '')\n];\nreturn [{\n  json: {\n    ...ctx,\n    LLMBody: {\n      model: 'gpt-4o-mini',\n      messages,\n      response_format: { type: 'json_object' },\n      temperature: 0.3,\n      max_tokens: 600\n    }\n  }\n}];"
+      },
+      "id": "79b16d85-e61f-49eb-89e8-456fda17299a",
+      "name": "Preparar prompt LLM1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.LLMBody) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b0a3e844-6b99-4131-a241-571e445a0f98",
+      "name": "Chamar LLM1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        -128
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "VxS0Y8sp17yI61Ex",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Preparar prompt LLM1').first().json;\nconst response = $input.first().json;\n\nlet llmText = '';\ntry {\n  llmText = response.choices[0].message.content;\n} catch(e) {\n  return [{\n    json: {\n      ...ctx,\n      action: 'respond',\n      response: 'Desculpa, tive um probleminha ð Pode repetir?',\n      intent: ctx.intent,\n      step: ctx.step,\n      llmData: {}\n    }\n  }];\n}\n\nlet parsed;\ntry {\n  const clean = llmText.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  return [{\n    json: {\n      ...ctx,\n      action: 'respond',\n      response: llmText || 'Desculpa, pode repetir? ð',\n      intent: ctx.intent,\n      step: ctx.step,\n      llmData: {}\n    }\n  }];\n}\n\nlet mergedData = { ...ctx.sessionData, ...(parsed.data || {}) };\nObject.keys(mergedData).forEach(k => {\n  if (mergedData[k] === null || mergedData[k] === undefined || mergedData[k] === '') {\n    delete mergedData[k];\n  }\n});\n\n// Reseta dados ao concluir para nÃ£o contaminar prÃ³xima conversa\nif (parsed.step === 'DONE') {\n  mergedData = {};\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    pushName: ctx.pushName,\n    text: ctx.text,\n    history: ctx.history,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName,\n    action: parsed.action || 'respond',\n    response: parsed.response || '',\n    intent: parsed.intent || ctx.intent,\n    step: parsed.step || ctx.step,\n    llmData: mergedData\n  }\n}];"
+      },
+      "id": "2a7fd75c-9f37-4cb3-9c70-ba29ea6e8ae2",
+      "name": "Classificar resposta LLM1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://studio-api-production-8345.up.railway.app/api/appointments/client?phone={{ $json.phone }}&studio={{ $json.studioSlug }}&status=confirmed",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        144,
+        704
+      ],
+      "id": "bca6b9e9-df3b-4f66-b1ee-36a1d06d41aa",
+      "name": "Buscar agendament"
+    },
+    {
+      "parameters": {
+        "url": "=http://studio_api:3001/api/appointments/client?phone={{ $json.phone }}&studio={{ $json.studioSlug }}&status=confirmed",
+        "options": {}
+      },
+      "id": "c74c2a3f-11a2-47f5-bb5b-ccd64e7b62c9",
+      "name": "Verificar duplicata1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM1').first().json;\nconst apiResponse = $input.first().json;\nconst appointments = apiResponse.appointments || [];\nconst novoServico = ctx.llmData?.service || '';\nconst novaData = ctx.llmData?.date ? new Date(ctx.llmData.date) : null;\n\nlet duplicata = null;\nif (novaData) {\n  duplicata = appointments.find(a => {\n    const diffDias = Math.abs(new Date(a.date) - novaData) / (1000 * 60 * 60 * 24);\n    return a.service_name && a.service_name.toLowerCase().includes(novoServico.replace(/_/g,' ').toLowerCase().split(' ')[0]) && diffDias < 7;\n  });\n}\n\nreturn [{\n  json: {\n    ...ctx,\n    duplicata: duplicata || null,\n    temDuplicata: !!duplicata\n  }\n}];"
+      },
+      "id": "e23f39d7-bf18-436e-803d-60498f5b1115",
+      "name": "Checar duplicata1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "dup-cond",
+              "leftValue": "={{ $json.temDuplicata }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "de39539c-c9ae-4123-bda6-ded2ddf1948f",
+      "name": "Tem duplicata?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst dup = ctx.duplicata;\nconst dataFormatada = new Date(dup.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText: 'VocÃª jÃ¡ tem *' + dup.service_name + '* marcado para ' + dataFormatada + ' Ã s ' + dup.start_time.substring(0,5) + ' ð\\n\\nTem certeza que deseja marcar novamente?\\n\\nResponda *sim* para confirmar ou *nÃ£o* para cancelar.',\n    intent: 'agendar',\n    step: 'WAITING_CONFIRM_DUPLICATA',\n    sessionData: ctx.llmData,\n    history: ctx.history,\n    pushName: ctx.pushName\n  }\n}];"
+      },
+      "id": "22ff0c49-20eb-42cc-8d93-4b7bad361e62",
+      "name": "Aviso duplicata1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Classificar resposta LLM').first().json;\nconst apt = $input.first().json;\n\nconst LINK_AGENDA = 'https://seudominio.com/booking';\n\nlet responseText;\nif (apt.status === 'confirmed' || apt.id) {\n  responseText = 'Agendamento confirmado! â\\n\\n';\n  responseText += 'ð *' + (apt.service_name || apt.service || ctx.llmData.service) + '*\\n';\n  responseText += 'ð ' + (apt.date || ctx.llmData.date) + '\\n';\n  responseText += 'ð ' + (apt.start_time || ctx.llmData.start_time).substring(0,5) + '\\n\\n';\n  responseText += 'A ' + (ctx.studioName || 'gente') + ' te espera! Qualquer coisa Ã© sÃ³ chamar ð\\n\\n';\n  responseText += 'ð Veja sua agenda: ' + LINK_AGENDA;\n} else {\n  responseText = 'Ops, nÃ£o consegui confirmar o agendamento ð Pode tentar de novo?';\n}\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText,\n    intent: 'agendar',\n    step: 'DONE',\n    sessionData: { ...ctx.llmData, appointment_id: apt.id },\n    history: ctx.history,\n    pushName: ctx.pushName\n  }\n}];"
+      },
+      "id": "665f14ab-7a5e-43c8-9601-6021ccfb23b1",
+      "name": "Formatar confirmaÃ§Ã£o2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://studio-api-production-8345.up.railway.app/api/appointments/{{ $json.llmData.appointment_id }}/cancel",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"reason\": \"Cancelado pela cliente via bot\",\n  \"studio\": \"{{ $json.studioSlug }}\"\n}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.BOT_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc036f77-d25b-450f-9ceb-6028636df65b",
+      "name": "Cancelar agendamento API1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -272,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-fromme",
+              "leftValue": "={{ $json.body.message.fromMe }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4d1c16ab-c882-4965-94f4-0b915c63df9c",
+      "name": "Ã fromVIP?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2304,
+        224
+      ],
+      "notes": "TEMPORÃRIO: remover quando chip dedicado chegar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst missing = [];\nif (!ctx.llmData?.service) missing.push('service');\nreturn [{ json: { ...ctx, missing, isValid: missing.length === 0 } }];"
+      },
+      "id": "val-slots-0001",
+      "name": "Validar slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "valid-slots-cond",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-slots-0001",
+      "name": "Dados completos? (slots)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst missing = [];\nif (!ctx.llmData?.service) missing.push('service');\nif (!ctx.llmData?.date) missing.push('date');\nif (!ctx.llmData?.start_time) missing.push('start_time');\nreturn [{ json: { ...ctx, missing, isValid: missing.length === 0 } }];"
+      },
+      "id": "val-appt-0001",
+      "name": "Validar agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "valid-appt-cond",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-appt-0001",
+      "name": "Dados completos? (agendamento)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst missing = [];\nif (!ctx.llmData?.appointment_id) missing.push('appointment_id');\nreturn [{ json: { ...ctx, missing, isValid: missing.length === 0 } }];"
+      },
+      "id": "val-cancel-0001",
+      "name": "Validar cancelamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "valid-cancel-cond",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-cancel-0001",
+      "name": "Dados completos? (cancelamento)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst missing = [];\nif (!ctx.llmData?.service) missing.push('service');\nif (!ctx.llmData?.date) missing.push('date');\nif (!ctx.llmData?.start_time) missing.push('start_time');\nif (!ctx.llmData?.appointment_id) missing.push('appointment_id');\nreturn [{ json: { ...ctx, missing, isValid: missing.length === 0 } }];"
+      },
+      "id": "val-resched-0001",
+      "name": "Validar remarcaÃ§Ã£o",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "valid-resched-cond",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-resched-0001",
+      "name": "Dados completos? (remarcaÃ§Ã£o)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        64,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst labels = {\n  service: 'o serviÃ§o desejado',\n  date: 'a data',\n  start_time: 'o horÃ¡rio',\n  appointment_id: 'qual agendamento (responda com o nÃºmero da lista)'\n};\nconst missing = (ctx.missing || []).map(f => labels[f] || f);\nconst lista = missing.length > 1\n  ? missing.slice(0, -1).join(', ') + ' e ' + missing[missing.length - 1]\n  : (missing[0] || 'mais uma informaÃ§Ã£o');\n\nreturn [{\n  json: {\n    phone: ctx.phone,\n    responseText: 'SÃ³ preciso que vocÃª me diga ' + lista + ' pra eu continuar! ð',\n    intent: ctx.intent,\n    step: ctx.step,\n    sessionData: ctx.llmData,\n    history: ctx.history,\n    pushName: ctx.pushName,\n    studioId: ctx.studioId,\n    studioSlug: ctx.studioSlug,\n    studioName: ctx.studioName\n  }\n}];"
+      },
+      "id": "ask-missing-0001",
+      "name": "Pedir dado faltante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        1280
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Mensagem WPP": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        [
+          {
+            "node": "Ã fromVIP?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ã mensagem de texto?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aviso sÃ³ texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Resolver Studio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Studio": {
+      "main": [
+        [
+          {
+            "node": "Studio resolvido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Studio resolvido?": {
+      "main": [
+        [
+          {
+            "node": "Buscar sessÃ£o",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instancia nao mapeada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar sessÃ£o": {
+      "main": [
+        [
+          {
+            "node": "Mesclar sessÃ£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mesclar sessÃ£o": {
+      "main": [
+        [
+          {
+            "node": "Buscar ServiÃ§os1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch aÃ§Ã£o": {
+      "main": [
+        [
+          {
+            "node": "Resposta direta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar slots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar agendament",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar cancelamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar remarcaÃ§Ã£o",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar slots": {
+      "main": [
+        [
+          {
+            "node": "Dados completos? (slots)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados completos? (slots)": {
+      "main": [
+        [
+          {
+            "node": "Buscar slots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir dado faltante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar agendamento": {
+      "main": [
+        [
+          {
+            "node": "Dados completos? (agendamento)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados completos? (agendamento)": {
+      "main": [
+        [
+          {
+            "node": "Criar agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir dado faltante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar cancelamento": {
+      "main": [
+        [
+          {
+            "node": "Dados completos? (cancelamento)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados completos? (cancelamento)": {
+      "main": [
+        [
+          {
+            "node": "Cancelar agendamento API1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir dado faltante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar remarcaÃ§Ã£o": {
+      "main": [
+        [
+          {
+            "node": "Dados completos? (remarcaÃ§Ã£o)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados completos? (remarcaÃ§Ã£o)": {
+      "main": [
+        [
+          {
+            "node": "Remarcar agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir dado faltante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir dado faltante": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta direta": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar slots": {
+      "main": [
+        [
+          {
+            "node": "Formatar slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar slots": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar agendamento": {
+      "main": [
+        [
+          {
+            "node": "Formatar confirmaÃ§Ã£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar confirmaÃ§Ã£o": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar agendamentos": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar cancelamento": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remarcar agendamento": {
+      "main": [
+        [
+          {
+            "node": "Formatar remarcaÃ§Ã£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar remarcaÃ§Ã£o": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar mensagem WA": {
+      "main": [
+        [
+          {
+            "node": "Preparar sessÃ£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar sessÃ£o": {
+      "main": [
+        [
+          {
+            "node": "Salvar sessÃ£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar ServiÃ§os1": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar prompt LLM1": {
+      "main": [
+        [
+          {
+            "node": "Chamar LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar LLM1": {
+      "main": [
+        [
+          {
+            "node": "Classificar resposta LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificar resposta LLM1": {
+      "main": [
+        [
+          {
+            "node": "Switch aÃ§Ã£o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar agendament": {
+      "main": [
+        [
+          {
+            "node": "Formatar agendamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar duplicata1": {
+      "main": [
+        [
+          {
+            "node": "Checar duplicata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar duplicata1": {
+      "main": [
+        [
+          {
+            "node": "Tem duplicata?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem duplicata?1": {
+      "main": [
+        [
+          {
+            "node": "Aviso duplicata1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aviso duplicata1": {
+      "main": [
+        [
+          {
+            "node": "Formatar confirmaÃ§Ã£o2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar confirmaÃ§Ã£o2": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar agendamento API1": {
+      "main": [
+        [
+          {
+            "node": "Formatar cancelamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ã fromVIP?": {
+      "main": [
+        [
+          {
+            "node": "Ignora",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ã mensagem de texto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6850a7df-f180-4a27-9603-c153000d79d6",
+  "meta": {
+    "instanceId": "4dd5144f947030dca41eb94d92f5cf80b07e63ee94fe9e81aba27d610da9ec2c"
+  },
+  "nodeGroups": [],
+  "id": "TlMfitth1JrHEH11",
+  "tags": []
+}

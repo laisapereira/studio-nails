@@ -1,10 +1,22 @@
-const BASE         = process.env.UAZAPI_URL
-const TOKEN        = process.env.UAZAPI_TOKEN
-const INSTANCE     = process.env.UAZAPI_INSTANCE
-const SITE_BASE_URL = process.env.SITE_BASE_URL  // ex: https://venhagenda.com.br
+import { pool } from '../db.js'
+
+const BASE          = process.env.UAZAPI_URL
+const TOKEN         = process.env.UAZAPI_TOKEN
+const INSTANCE      = process.env.UAZAPI_INSTANCE   // número central (plano basic)
+const SITE_BASE_URL = process.env.SITE_BASE_URL     // ex: https://venhagenda.com.br
 
 type ApptEvent   = 'new' | 'reschedule' | 'cancel' | 'client_cancel'
 export type ClientEvent = 'confirmed' | 'rescheduled' | 'reminder' | 'client_cancelled'
+
+export interface SendMeta {
+  tenantId:       number
+  kind:           'bot' | 'notification' | 'reminder' | 'summary'
+  customerId?:    string
+  appointmentId?: string
+  // Tenant premium envia pela instância própria; sem instance cai no número central
+  instance?:      string | null
+  replyToId?:     string
+}
 
 export interface ApptInfo {
   clientName:   string
@@ -42,16 +54,50 @@ function normalizePhone(phone: string): string {
   return digits
 }
 
-export async function sendText(toPhone: string, text: string): Promise<void> {
-  if (!BASE || !TOKEN || !INSTANCE) {
+async function recordMessage(
+  meta: SendMeta,
+  phone: string,
+  body: string,
+  instance: string,
+  status: 'sent' | 'failed',
+  externalId: string | null,
+): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO messages (tenant_id, customer_id, appointment_id, reply_to_id,
+                             phone, direction, kind, body, whatsapp_instance, external_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'outbound', $6, $7, $8, $9, $10)`,
+      [meta.tenantId, meta.customerId ?? null, meta.appointmentId ?? null, meta.replyToId ?? null,
+       phone, meta.kind, body, instance, externalId, status]
+    )
+  } catch (err) {
+    console.error('[whatsapp] falha ao gravar em messages:', err)
+  }
+}
+
+export async function sendText(toPhone: string, text: string, meta?: SendMeta): Promise<void> {
+  const instance = meta?.instance ?? INSTANCE
+  if (!BASE || !TOKEN || !instance) {
     console.warn('[whatsapp] UAZAPI_* não configuradas — notificação ignorada')
     return
   }
+  const phone = normalizePhone(toPhone)
   const res = await fetch(`${BASE}/send/text`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', token: TOKEN, instance: INSTANCE },
-    body: JSON.stringify({ number: normalizePhone(toPhone), text }),
+    headers: { 'Content-Type': 'application/json', token: TOKEN, instance },
+    body: JSON.stringify({ number: phone, text }),
   })
+
+  let externalId: string | null = null
+  if (res.ok) {
+    try {
+      const data: any = await res.json()
+      externalId = data?.id ?? data?.messageid ?? data?.key?.id ?? null
+    } catch { /* resposta sem JSON — sem external_id */ }
+  }
+
+  if (meta) await recordMessage(meta, phone, text, instance, res.ok ? 'sent' : 'failed', externalId)
+
   if (!res.ok) throw new Error(`UazAPI ${res.status}: ${await res.text()}`)
 }
 
@@ -60,6 +106,7 @@ export async function notifyAppt(
   appt: ApptInfo,
   toPhone: string,
   studioSlug?: string,
+  meta?: SendMeta,
 ): Promise<void> {
   const date  = formatDate(appt.date)
   const phone = formatPhone(appt.clientPhone)
@@ -82,7 +129,7 @@ export async function notifyAppt(
     text = `❌ *Cancelamento*\n👤 ${appt.clientName}\n📱 ${phone}\n✨ ${appt.serviceName}\n💰 ${price}\n🗓️ ${date} às ${appt.startTime}${link}`
   }
 
-  await sendText(toPhone, text)
+  await sendText(toPhone, text, meta)
 }
 
 export async function notifyClient(
@@ -92,6 +139,7 @@ export async function notifyClient(
   studioName: string,
   contactPhone?: string | null,
   studioSlug?: string,
+  meta?: SendMeta,
 ): Promise<void> {
   const date    = formatDate(appt.date)
   const price   = formatPrice(appt.totalPrice)
@@ -117,5 +165,5 @@ export async function notifyClient(
     text = `Oi! Aqui é a assistente de agenda da *${studioName}*.\n\nSeu cancelamento foi confirmado.\n✨ ${appt.serviceName}\n📅 ${date} às ${appt.startTime}\n\nPara reagendar quando quiser:${bookLink} 💅`
   }
 
-  await sendText(toPhone, text)
+  await sendText(toPhone, text, meta)
 }

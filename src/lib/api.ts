@@ -4,27 +4,6 @@ function token(): string | null {
   return localStorage.getItem('token')
 }
 
-function clientToken(): string | null {
-  return localStorage.getItem('client_token')
-}
-
-async function clientReq<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const t = clientToken()
-  if (t) headers['Authorization'] = `Bearer ${t}`
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? res.statusText)
-  }
-  if (res.status === 204) return undefined as T
-  return res.json()
-}
-
 async function req<T>(
   method: string,
   path: string,
@@ -125,14 +104,6 @@ export const api = {
         : req<StudioConfig>('GET', '/config/me'),
     update: (data: Partial<StudioConfig>) => req<void>('PATCH', '/config', data),
   },
-  vip: {
-    list: () =>
-      req<{ contacts: VipContact[] }>('GET', '/vip').then(r => r.contacts),
-    add: (phone: string, name: string, note?: string) =>
-      req<VipContact>('POST', '/vip', { phone, name, note }),
-    remove: (phone: string) =>
-      req<void>('DELETE', `/vip/${phone}`),
-  },
   client: {
     lookup: (phone: string) =>
       req<{ client_name: string; appointments: ClientAppointment[] }>('POST', '/client/appointments', { phone }, false),
@@ -217,6 +188,8 @@ export interface Appointment {
   service_price: number
   service_color: string
   service_emoji: string
+  total_price?: number
+  total_duration?: number
   notes?: string
   created_via: string
 }
@@ -271,12 +244,6 @@ export interface TimeBlock {
   end_time:   string
   reason:     string
   created_at: string
-}
-
-export interface VipContact {
-  phone: string
-  name:  string
-  note:  string | null
 }
 
 export interface ClientApptService {

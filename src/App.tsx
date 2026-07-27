@@ -6,7 +6,6 @@ import Services       from './pages/Services'
 import Login          from './pages/Login'
 import Setup          from './pages/Setup'
 import MyAppointments from './pages/MyAppointments'
-import Vip            from './pages/Vip'
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const token = localStorage.getItem('token')
@@ -28,7 +27,6 @@ export default function App() {
         {/* Área admin — cada estúdio tem seu próprio slug */}
         <Route path="/:slug/admin"          element={<PrivateRoute><Admin /></PrivateRoute>} />
         <Route path="/:slug/admin/services" element={<PrivateRoute><Services /></PrivateRoute>} />
-        <Route path="/:slug/admin/vip"      element={<PrivateRoute><Vip /></PrivateRoute>} />
 
         <Route path="/" element={<Navigate to="/setup" replace />} />
         <Route path="*" element={<Navigate to="/setup" replace />} />

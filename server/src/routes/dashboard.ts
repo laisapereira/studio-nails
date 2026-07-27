@@ -6,22 +6,21 @@ export const dashboardRouter = Router()
 
 dashboardRouter.get('/stats', requireAuth, async (req, res) => {
   const { start, end } = req.query as Record<string, string>
-  const studioId = req.admin!.studio_id
+  const tenantId = req.admin!.tenant_id
 
   const { rows } = await pool.query(
     `SELECT
        COUNT(*)                                          AS total_appointments,
-       COALESCE(SUM(s.price), 0)                        AS total_revenue,
-       COALESCE(SUM(s.duration), 0)                     AS total_minutes,
+       COALESCE(SUM(a.total_price), 0)                  AS total_revenue,
+       COALESCE(SUM(a.total_duration), 0)               AS total_minutes,
        COUNT(*) FILTER (WHERE a.status = 'confirmed')   AS confirmed,
        COUNT(*) FILTER (WHERE a.status = 'completed')   AS completed,
        COUNT(*) FILTER (WHERE a.status = 'cancelled')   AS cancelled
      FROM appointments a
-     JOIN services s ON s.id = a.service_id
-     WHERE a.studio_id = $1
+     WHERE a.tenant_id = $1
        AND ($2::DATE IS NULL OR a.date >= $2)
        AND ($3::DATE IS NULL OR a.date <= $3)`,
-    [studioId, start ?? null, end ?? null]
+    [tenantId, start ?? null, end ?? null]
   )
 
   const row = rows[0]
@@ -39,9 +38,9 @@ dashboardRouter.get('/upcoming', requireAuth, async (req, res) => {
   const limit = parseInt((req.query.limit as string) ?? '5', 10)
   const { rows } = await pool.query(
     `SELECT * FROM appointments_full
-     WHERE studio_id = $1 AND date >= CURRENT_DATE AND status <> 'cancelled'
+     WHERE tenant_id = $1 AND date >= CURRENT_DATE AND status <> 'cancelled'
      ORDER BY date, start_time LIMIT $2`,
-    [req.admin!.studio_id, limit]
+    [req.admin!.tenant_id, limit]
   )
   res.json(rows)
 })
