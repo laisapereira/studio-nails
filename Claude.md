@@ -25,7 +25,7 @@ O primeiro cliente/piloto do sistema é a **Michele** (manicure), mas a arquitet
 | Backend | **Express + TypeScript próprio** (`/server`), rodando com `tsx` |
 | Banco de dados | **PostgreSQL self-hosted** via Docker (`pg` puro, sem ORM, sem Supabase) |
 | Auth admin | JWT (`jsonwebtoken`) + bcrypt, emitido por `/api/auth/login` |
-| Auth cliente | lookup só por telefone (login formal futuro: `customers.email`/`password_hash`) |
+| Auth cliente | lookup só por telefone — **zero login, zero senha** (posicionamento do produto) |
 | Bot WhatsApp | **UazAPI** (não é mais Evolution API) |
 | Automação | n8n (self-hosted, container Docker) — fluxos em `/n8n/*.json` |
 | Lembretes/resumos | **cron nativo no backend** (`node-cron`, ver `server/src/lib/scheduledNotifs.ts`) — não depende do n8n |
@@ -38,7 +38,7 @@ O primeiro cliente/piloto do sistema é a **Michele** (manicure), mas a arquitet
 ## Multi-tenancy e nomenclatura B2B2C
 
 Nomenclatura das tabelas (desde a migration 003):
-- `tenants` (era `studios`) = o **B** — a empreendedora/estúdio dona da agenda. Tem `plan` (`basic`/`premium`).
+- `tenants` (era `studios`) = o **B** — a empreendedora/estúdio dona da agenda. Tem `plan` (`free`/`basic`/`premium`) e `trial_ends_at`: tenant novo nasce `free` (trial de 5 agendamentos ou 30 dias, o que vier primeiro — o limite de agendamentos é derivado por COUNT); `basic` = plano de entrada com número WhatsApp central compartilhado; `premium` = número dedicado (`whatsapp_instance` própria, setup pago + sustentação mensal).
 - `users` (era `admins`) = login administrativo da dona do estúdio.
 - `customers` (era `clients`) = o **C** — cliente final. É **global** (phone UNIQUE) com `tenant_ids INT[]` — a mesma pessoa não duplica entre estúdios; agendar num estúdio novo faz `array_append` do tenant.
 - `tenant_config` (era `studio_config`).
@@ -102,7 +102,7 @@ O fluxo conversacional do bot (classificar serviço, pedir data, confirmar horá
 - Lookup só por telefone (`POST /api/client/appointments`) — **sempre retorna 200**, mesmo se o telefone não existir, para não permitir enumeração de números.
 - 3 seções: **próximos / passados / cancelados**.
 - Cliente pode remarcar (mostra popup com horário antigo vs novo) ou cancelar o próprio agendamento — isso dispara `client_cancel` nas notificações, diferenciado do cancelamento feito pela dona do estúdio.
-- Login formal futuro: `customers.email`/`customers.password_hash` (nullable) — a tabela `client_accounts` foi removida na migration 003 (nunca foi usada em runtime).
+- **Não existe (nem existirá) login com senha para a cliente final** — decisão de posicionamento "100% WhatsApp, zero login, zero senha". As colunas `email`/`password_hash` que sobraram em `customers` foram removidas na migration 004; `client_accounts` já tinha caído na 003. Se aparecer pedido de "conta da cliente", questionar antes de modelar.
 
 ---
 

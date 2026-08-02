@@ -11,14 +11,18 @@
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- ── tenants ──────────────────────────────────────────────────
--- plan: 'premium' tem whatsapp_instance própria (número dedicado);
---       'basic' usa o número central compartilhado (instância via env)
+-- plan: 'free'    = trial (5 agendamentos ou 30 dias, o que vier primeiro;
+--                   limite de agendamentos é derivado por COUNT em appointments)
+--       'basic'   = plano de entrada, número central compartilhado (instância via env)
+--       'premium' = whatsapp_instance própria (número dedicado)
+-- trial_ends_at NULL = sem trial ativo (plano pago ou trial encerrado)
 CREATE TABLE IF NOT EXISTS tenants (
   id                SERIAL PRIMARY KEY,
   name              TEXT NOT NULL,
   slug              TEXT NOT NULL UNIQUE,
   address           TEXT,
-  plan              TEXT NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic', 'premium')),
+  plan              TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'basic', 'premium')),
+  trial_ends_at     TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
   whatsapp_instance TEXT UNIQUE,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
@@ -58,16 +62,14 @@ CREATE TABLE IF NOT EXISTS services (
 );
 
 -- ── customers (globais — a mesma pessoa em N tenants) ────────
--- email/password_hash nullable: reservados para login formal futuro;
--- o fluxo atual é lookup por telefone (sempre 200, anti-enumeração)
+-- Zero login, zero senha (posicionamento do produto): identificação é
+-- sempre pelo telefone (lookup sempre retorna 200, anti-enumeração)
 CREATE TABLE IF NOT EXISTS customers (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          TEXT  NOT NULL,
-  phone         TEXT  NOT NULL UNIQUE,
-  tenant_ids    INT[] NOT NULL,
-  email         VARCHAR(255) UNIQUE,
-  password_hash TEXT,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT  NOT NULL,
+  phone      TEXT  NOT NULL UNIQUE,
+  tenant_ids INT[] NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_customers_tenant_ids ON customers USING GIN (tenant_ids);
 
