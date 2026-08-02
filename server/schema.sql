@@ -17,22 +17,18 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 --       'premium' = whatsapp_instance própria (número dedicado)
 -- trial_ends_at NULL = sem trial ativo (plano pago ou trial encerrado)
 CREATE TABLE IF NOT EXISTS tenants (
-  id                SERIAL PRIMARY KEY,
-  name              TEXT NOT NULL,
-  slug              TEXT NOT NULL UNIQUE,
-  address           TEXT,
-  plan              TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'basic', 'premium')),
-  trial_ends_at     TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
-  whatsapp_instance TEXT UNIQUE,
-  created_at        TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── tenant_config ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS tenant_config (
-  tenant_id INT          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  key       VARCHAR(50)  NOT NULL,
-  value     TEXT         NOT NULL,
-  PRIMARY KEY (tenant_id, key)
+  id                 SERIAL PRIMARY KEY,
+  name               TEXT NOT NULL,
+  slug               TEXT NOT NULL UNIQUE,
+  address            TEXT,
+  plan               TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'basic', 'premium')),
+  trial_ends_at      TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
+  whatsapp_instance  TEXT UNIQUE,
+  work_days          TEXT NOT NULL DEFAULT '1,2,3,4,5',  -- ISO dow CSV (1=seg..7=dom)
+  work_start         TIME NOT NULL DEFAULT '09:00',
+  work_end           TIME NOT NULL DEFAULT '18:00',
+  notification_phone TEXT,                               -- avisos pra dona (55+DDD+numero)
+  created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ── users (login admin da dona do estúdio) ───────────────────
@@ -199,13 +195,10 @@ DECLARE
 BEGIN
   v_dow := EXTRACT(ISODOW FROM p_date);
 
-  SELECT value INTO v_work_days  FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_days';
-  SELECT value::TIME INTO v_work_start FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_start';
-  SELECT value::TIME INTO v_work_end   FROM tenant_config WHERE tenant_id = p_tenant_id AND key = 'work_end';
-
-  IF v_work_days  IS NULL THEN v_work_days  := '1,2,3,4,5'; END IF;
-  IF v_work_start IS NULL THEN v_work_start := '09:00'; END IF;
-  IF v_work_end   IS NULL THEN v_work_end   := '18:00'; END IF;
+  SELECT work_days, work_start, work_end
+    INTO v_work_days, v_work_start, v_work_end
+  FROM tenants WHERE id = p_tenant_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
   IF NOT (v_dow::TEXT = ANY(string_to_array(v_work_days, ','))) THEN RETURN; END IF;
 
@@ -247,7 +240,6 @@ $$;
 -- middleware define: SET app.tenant_id = '<id>'
 
 ALTER TABLE users         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE services      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments  ENABLE ROW LEVEL SECURITY;
@@ -255,7 +247,6 @@ ALTER TABLE time_blocks   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages      ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY rls_users         ON users         USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
-CREATE POLICY rls_tenant_config ON tenant_config USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
 CREATE POLICY rls_services      ON services      USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
 CREATE POLICY rls_appointments  ON appointments  USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);
 CREATE POLICY rls_time_blocks   ON time_blocks   USING (current_setting('app.tenant_id',TRUE) IS NULL OR current_setting('app.tenant_id',TRUE)='' OR tenant_id=current_setting('app.tenant_id',TRUE)::INT);

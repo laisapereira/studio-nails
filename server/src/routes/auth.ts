@@ -58,14 +58,7 @@ authRouter.post('/setup', async (req, res) => {
     [email.toLowerCase().trim(), password_hash, tenant.id]
   )
 
-  await pool.query(
-    `INSERT INTO tenant_config (tenant_id, key, value) VALUES
-      ($1, 'work_days',  '1,2,3,4,5'),
-      ($1, 'work_start', '09:00'),
-      ($1, 'work_end',   '18:00')
-     ON CONFLICT DO NOTHING`,
-    [tenant.id]
-  )
+  // work_days/work_start/work_end nascem dos DEFAULTs da tabela tenants
 
   await pool.query(
     `INSERT INTO services (tenant_id, name, duration, price, color, emoji, slug) VALUES

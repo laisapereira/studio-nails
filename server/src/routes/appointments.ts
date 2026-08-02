@@ -15,10 +15,8 @@ async function tenantMeta(tenantId: number): Promise<{
   slug: string; notifPhone: string | null; tenantName: string; instance: string | null
 }> {
   const { rows } = await pool.query(`
-    SELECT t.slug, t.name AS tenant_name, t.whatsapp_instance, tc.value AS notif_phone
-    FROM tenants t
-    LEFT JOIN tenant_config tc ON tc.tenant_id = t.id AND tc.key = 'notification_phone'
-    WHERE t.id = $1
+    SELECT slug, name AS tenant_name, whatsapp_instance, notification_phone AS notif_phone
+    FROM tenants WHERE id = $1
   `, [tenantId])
   return {
     slug:       rows[0]?.slug ?? '',

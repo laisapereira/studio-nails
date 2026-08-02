@@ -191,11 +191,11 @@ slotsRouter.get('/available-dates', async (req, res) => {
     }
 
     const { rows: cfgRows } = await pool.query(
-      "SELECT value FROM tenant_config WHERE tenant_id = $1 AND key = 'work_days'",
+      'SELECT work_days FROM tenants WHERE id = $1',
       [tenantId]
     )
     const workDaysIsodow: number[] = cfgRows[0]
-      ? cfgRows[0].value.split(',').map(Number)
+      ? cfgRows[0].work_days.split(',').map(Number)
       : [1, 2, 3, 4, 5]
 
     const startDate = new Date(start + 'T00:00:00Z')

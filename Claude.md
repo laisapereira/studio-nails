@@ -41,12 +41,12 @@ Nomenclatura das tabelas (desde a migration 003):
 - `tenants` (era `studios`) = o **B** — a empreendedora/estúdio dona da agenda. Tem `plan` (`free`/`basic`/`premium`) e `trial_ends_at`: tenant novo nasce `free` (trial de 5 agendamentos ou 30 dias, o que vier primeiro — o limite de agendamentos é derivado por COUNT); `basic` = plano de entrada com número WhatsApp central compartilhado; `premium` = número dedicado (`whatsapp_instance` própria, setup pago + sustentação mensal).
 - `users` (era `admins`) = login administrativo da dona do estúdio.
 - `customers` (era `clients`) = o **C** — cliente final. É **global** (phone UNIQUE) com `tenant_ids INT[]` — a mesma pessoa não duplica entre estúdios; agendar num estúdio novo faz `array_append` do tenant.
-- `tenant_config` (era `studio_config`).
+- `studio_config`/`tenant_config` **não existe mais** (migration 005): as 4 configs viraram colunas tipadas em `tenants` (`work_days`, `work_start`, `work_end`, `notification_phone`).
 - **Exceção**: `bot_sessions` mantém a coluna `studio_id` — o fluxo n8n faz SQL direto nela; renomear só junto com o fluxo.
 - **Contrato HTTP não mudou**: paths `/api/...`, bodies (`studio`, `studio_name`) e chaves JSON de resposta (`studio_name`, `service_id`, `all_services`...) continuam com os nomes antigos — n8n e frontend dependem deles. Só o interno (SQL, variáveis TS, claims JWT `tenant_id`/`tenant_slug`) foi renomeado.
 
 - **RLS no Postgres** isola dados por `tenant_id`. O middleware `requireAuth` (`server/src/middleware/auth.ts`) faz `SET app.tenant_id` na sessão do pool logo após validar o JWT (aceita claims legados `studio_id` de tokens antigos). Em `customers` a policy usa `tenant_ids @> ARRAY[...]`.
-- Onboarding de estúdio novo: `POST /api/auth/setup` (rota `/setup` no frontend) — cria `tenants` + `users` + `tenant_config` padrão (dias/horário de trabalho) + os 5 serviços padrão (seed).
+- Onboarding de estúdio novo: `POST /api/auth/setup` (rota `/setup` no frontend) — cria `tenants` (horário de trabalho vem dos DEFAULTs das colunas) + `users` + os 5 serviços padrão (seed).
 - Rotas do admin são sempre prefixadas por slug: `/:slug/admin`, `/:slug/admin/services`.
 - Rota pública de agendamento: `/book/:slug`.
 
@@ -65,7 +65,7 @@ Nomenclatura das tabelas (desde a migration 003):
 Cada estúdio pode editar/adicionar serviços depois via `/:slug/admin/services` — isso não é mais fixo globalmente, é só o seed inicial.
 
 ### Horários de funcionamento
-- Configurável por estúdio em `studio_config` (chaves `work_days`, `work_start`, `work_end`), com fallback padrão: seg–sex, 09:00–18:00, slots de 30 min.
+- Configurável por estúdio nas colunas `tenants.work_days`/`work_start`/`work_end` (DEFAULT: seg–sex, 09:00–18:00), slots de 30 min.
 - A function `available_slots(p_date, p_service_id, p_tenant_id, p_duration)` no Postgres (`server/schema.sql`) já respeita `work_days`/`work_start`/`work_end` por estúdio, além de `time_blocks` (bloqueios manuais de agenda) e conflitos de horário.
 - Um agendamento pode ter **múltiplos serviços**: coluna `appointments.services JSONB` — snapshot `[{id, name, price, duration, emoji, color}]` **congelado no momento do booking** (mudar o preço do serviço depois não altera o histórico). `total_price` e `total_duration` são persistidos. Não existe mais `appointments.service_id` nem a tabela `appointment_services`; o `service_id` do JSON de resposta é derivado do 1º item do snapshot.
 - Cada serviço tem `reminder_days_before` (default 2): quantos dias antes a cliente recebe o lembrete. No booking, `appointments.reminder_date = date - max(reminder_days_before dos serviços escolhidos)`.
@@ -78,7 +78,7 @@ Cada estúdio pode editar/adicionar serviços depois via `/:slug/admin/services`
 ## Notificações WhatsApp (via UazAPI, `server/src/lib/whatsapp.ts`)
 
 Duas famílias de mensagem:
-- **`notifyAppt`** → avisa a **dona do estúdio** (número em `studio_config.notification_phone`): novo agendamento, remarcação (mostra horário antigo vs novo), cancelamento (diferencia se foi a própria cliente que cancelou ou o studio).
+- **`notifyAppt`** → avisa a **dona do estúdio** (número em `tenants.notification_phone`): novo agendamento, remarcação (mostra horário antigo vs novo), cancelamento (diferencia se foi a própria cliente que cancelou ou o studio).
 - **`notifyClient`** → avisa a **cliente**: confirmação, remarcação, lembrete (2 dias antes), cancelamento.
 
 Cron jobs automáticos (`server/src/lib/scheduledNotifs.ts`, roda dentro do próprio processo Express, `America/Sao_Paulo`):
@@ -150,7 +150,7 @@ studio-nails/
 │           ├── appointments.ts
 │           ├── services.ts
 │           ├── slots.ts         # wrapper de available_slots()
-│           ├── config.ts        # tenant_config (público + admin)
+│           ├── config.ts        # config do tenant: work_days/horários/notification_phone
 │           ├── blocks.ts        # time_blocks
 │           ├── clientAuth.ts    # lookup da cliente por telefone
 │           └── dashboard.ts
@@ -203,7 +203,7 @@ TIMEZONE=America/Sao_Paulo
 
 - **Dona do estúdio não é técnica** — painel precisa ser simples e funcionar bem no celular.
 - **Volume baixo por estúdio** (~5-8 clientes/dia) — free tiers / recursos modestos são suficientes.
-- **Sem sábado/domingo por padrão** — mas isso agora é configurável por estúdio (`studio_config.work_days`), então não trate como regra fixa no código.
+- **Sem sábado/domingo por padrão** — mas isso agora é configurável por estúdio (`tenants.work_days`), então não trate como regra fixa no código.
 - `src/lib/supabase.js` está órfão (não é chamado por nada em runtime) — candidato a remoção quando alguém for limpar dependências.
 - `bot_sessions` existe no schema mas o fluxo conversacional real do bot roda hoje via n8n, não via essa tabela diretamente — confirmar antes de assumir que ela está em uso ativo.
 

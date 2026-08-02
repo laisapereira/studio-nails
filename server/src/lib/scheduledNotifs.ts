@@ -22,10 +22,9 @@ function fmtDatePT(iso: string): string {
 
 async function tenantsWithPhone(): Promise<Tenant[]> {
   const { rows } = await pool.query(`
-    SELECT t.id, t.name, t.slug, t.whatsapp_instance, tc.value AS phone
-    FROM tenants t
-    JOIN tenant_config tc ON tc.tenant_id = t.id AND tc.key = 'notification_phone'
-    WHERE tc.value IS NOT NULL AND tc.value <> ''
+    SELECT id, name, slug, whatsapp_instance, notification_phone AS phone
+    FROM tenants
+    WHERE notification_phone IS NOT NULL AND notification_phone <> ''
   `)
   return rows
 }
@@ -121,11 +120,10 @@ async function sendClientReminders() {
            (SELECT string_agg(e.value->>'name', ' + ' ORDER BY e.ordinality)
               FROM jsonb_array_elements(a.services) WITH ORDINALITY e) AS all_service_names,
            t.name AS tenant_name, t.slug AS tenant_slug, t.whatsapp_instance,
-           tc.value AS contact_phone
+           t.notification_phone AS contact_phone
     FROM appointments a
     JOIN customers c ON c.id = a.customer_id
     JOIN tenants   t ON t.id = a.tenant_id
-    LEFT JOIN tenant_config tc ON tc.tenant_id = t.id AND tc.key = 'notification_phone'
     WHERE a.reminder_date <= $1 AND a.date >= $1
       AND NOT a.reminder_sent AND a.status = 'confirmed'
     ORDER BY a.tenant_id, a.start_time
